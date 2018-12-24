@@ -152,7 +152,6 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-
     cout << "Result:" << endl;
     for (int i = 0; i < imSize.width*imSize.height; i++) {
         if (score[i] > 0)
