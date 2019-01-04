@@ -1,0 +1,54 @@
+%YAML:1.0
+Camera.fx: 679.6095451315155
+Camera.fy: 679.6095451315155
+Camera.cx: 357.67172050476074
+Camera.cy: 225.19885063171387
+
+Camera.width: 752
+Camera.height: 480
+
+LEFT.height: 480
+LEFT.width: 752
+LEFT.D: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [ 0.05022528,-0.09623162, 0.        , 0.        , 0.        ]
+LEFT.K: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [681.06289021,  0.        ,376.94318552,  0.        ,680.33985889,230.5127109 ,  0.        ,  0.        ,  1.        ]
+LEFT.R: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 0.99958189, 0.00156876, 0.02887198,-0.00158557, 0.99999859, 0.00055954,-0.02887106,-0.00060508, 0.99958296]
+LEFT.P: !!opencv-matrix
+   rows: 3
+   cols: 4
+   dt: d
+   data: [679.60954513,  0.        ,357.6717205 ,  0.        ,  0.        ,679.60954513,225.19885063,  0.        ,  0.        ,  0.        ,  1.        ,  0.        ]
+
+RIGHT.height: 480
+RIGHT.width: 752
+RIGHT.D: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [ 0.04546264,-0.07835381, 0.        , 0.        , 0.        ]
+RIGHT.K: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [679.51564526,  0.        ,381.39915189,  0.        ,678.87923137,230.3515789 ,  0.        ,  0.        ,  1.        ]
+RIGHT.R: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 0.9994823 , 0.00368689, 0.03196166,-0.00367083, 0.99999311,-0.00056115,-0.03196351, 0.00044353, 0.99948894]
+RIGHT.P: !!opencv-matrix
+   rows: 3
+   cols: 4
+   dt: d
+   data: [ 679.60954513,   0.        , 357.6717205 ,-242.30611042,   0.        , 679.60954513, 225.19885063,   0.        ,   0.        ,   0.        ,   1.        ,   0.        ]
