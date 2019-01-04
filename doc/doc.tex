@@ -17,6 +17,10 @@
 \advisors{Marcus Hudritsch}
 \department{TSM CPVR Lab}
 
+\lstset{
+	basicstyle=\ttfamily\tiny
+}
+
 \begin{document}
 \maketitle
 
@@ -31,7 +35,7 @@ As embedded CPU we use an iMX8 Quad Max from NXP with hardware provided by Torad
 \tableofcontents
 
 \chapter{Introduction}
-For robot navigation we have several possibilities today. Navigation systems can use IMUs, magneto meters, radio signals and for outdoor navigation GPS. Humans do most navigation with their eyes. Today we have more computational power available and therefore computer vision becomes more and more important. One growing field in computer vision is SLAM where we try to create a map of the environment and estimate the pose of the camera based on images.\\\\
+For robot navigation we have several possibilities today. Navigation systems can use IMUs, magneto meters, radio signals and for outdoor navigation GPS. Humans however, do a lot of navigation by eye. Today we have almost more and more computational power available and therefore computer vision becomes important. One field in computer vision is SLAM where we try to create a map of the environment and estimate the pose of the camera based on images.\\\\
 In this project we analyze the performance of ORB SLAM \cite{orbslam} running on an iMX8QM. We use a Stereo Camera for creating a point cloud. By using a Stereo Camera we are able to reconstruct a point cloud with a known scale.\\\\
 After porting ORB SLAM to the iMX8 we analyze the performance issues and start a discussion about possible alternatives.
 
@@ -41,7 +45,7 @@ Toradex is interested to see some new applications and demos running on their ne
 
 \subsection{Features}
 
-The iMX8QM contains the following features:
+The iMX8QM has the following features:
 \begin{itemize}
   \item Two Cortex A72 high performance processors
   \item Four Cortex A53 low power processors
@@ -69,12 +73,15 @@ The project was planned to end on beginning of January. The concept phase starte
 
 \chapter{SLAM Evaluation}
 
-As a first task we study some existing SLAM solutions. There are two groups of SLAM systems one are indirect methods and the other one are direct methods.\\\\
+As a first task we study some existing SLAM solutions. There are two groups of SLAM systems one are indirect methods and the other one are direct methods (see figure \ref{fig:slammodes}).\\\\
 On indirect methods an image is analyzed and feature points are extracted. This feature points are then matched against the second stereo image and the depth of the keypoint is calculated. For the next frame again features points on the new left image are extraced and then compared with the 3d Cloud. Through matched keypoints we can then estimated the translation and rotation between the two captures.\\\\
 Direct methods on the other hand operated directly on intensity variances. This means the intensities differences between two images is tried to minimize. This can be very computational intensive. Therefore, this methods often operated only on edges or even corners of the image, to reduce the computational effort. Such methods are called direct semi dense or direct sparse methods.\\\\
 In the next section we will discuss the differences between monocular SLAM and stereo SLAM. We will see that they are quite similar but that stereo SLAM has some advantages over monocular SLAM.
 
-%TODO: Image with indirect and direct methods
+\begin{figure}[H]
+	\includegraphics[width=1.0\textwidth]{img/slam_modes.png}
+	\caption{SLAM Modes}\label{fig:slammodes}
+\end{figure}
 
 \section{Stereo vs Mono}
 
@@ -261,6 +268,18 @@ In the previous section we said we also need to know the pixel size. This is tru
 
 \section{Stereo Camera Model}
 
+Additional to the monocular parameters we need to find out the parameters of the stereo camera. An image taken by a stereo camera normally is misaligned as shown in the top row of figure \ref{fig:stereo_calib}. The goal is to find the rotation matrix as well as the Y offset and the non overlapping part of the image (black part in figure \ref{fig:stereo_calib}).\\
+While for monocular calibration a mid size checkerboard works fine a huge size of the checkerboard is much more important when doing stereo calibration. If the checkerboard is small a pixel has a much bigger effect on the final calibration data than if the checkerboard is big.
+
+%TODO: Add proof if we have time
+
+\begin{figure}[H]
+  \begin{center}
+		\includegraphics[width=0.9\textwidth]{img/stereo_calib.png}
+  \end{center}
+	\caption{Stereo Calibration, top row misaligned image, bottom row rectified images}\label{fig:stereo_calib}
+\end{figure}
+
 \chapter{ORB SLAM}\label{chap:implementation}
 
 In this chapter we discuss more deeply how ORB SLAM works and how we port it to the iMX8 processor.
@@ -327,13 +346,160 @@ Loop Closing:
 	f_u,f_v &:	\text{Focal length}
 \end{align*}
 
+\section{Port to iMX8}
+
+The iMX8 BSP is built with Yocto. NXP and Toradex provide a BSP layer which contains a kernel and all necessary proprietary libraries for OpenGL. OpenCV is already part of the image fsl-image-qt5. How we build the BSP and the SDK is out of scope of this project. Please check the following references:\\
+\begin{itemize}
+	\item Yocto project \cite{yocto}
+	\item Toradex BSP \cite{toradex_bsp}
+\end{itemize}
+
+From the Yocto build we can also receive an SDK which contains a ARM64 toolchain that can be used to compile additional programs and libraries. This toolchain was used to build the ORB SLAM2 for the iMX8. For the following section we assume that the toolchain is installed under/opt/fsl-imx-x11/4.9.51-mx8-beta
+
+\subsection{Pangolin}
+Pangolin \cite{pangolin} is required by ORB SLAM for showing the sparse map and the camera pose. A simple git checkout of the pangolin sources is enough to receive the sources. Before building the project with CMake the following patch should be applied:
+\begin{lstlisting}
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 32a2d78..683ef38 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -15,6 +15,9 @@ SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "Steven Lovegrove")
+ SET(CPACK_PACKAGE_VERSION_MAJOR ${PANGOLIN_VERSION_MAJOR})
+ SET(CPACK_PACKAGE_VERSION_MINOR ${PANGOLIN_VERSION_MINOR})
+ SET(CPACK_PACKAGE_VERSION_PATCH "0")
++SET(CMAKE_INCLUDE_SYSTEM_FLAG_CXX "-I")
++SET(CMAKE_INCLUDE_SYSTEM_FLAG_C "-I")
++
+ include(CPack)
+ 
+ option( BUILD_EXAMPLES "Build Examples" ON )
+\end{lstlisting}
+
+After that the following commands should be done:
+\begin{lstlisting}
+	. /opt/fsl-imx-x11/4.9.51-mx8-beta/environment-setup-aarch64-poky-linux
+	mkdir build
+	cd build
+	cmake -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR> ..
+	make -j
+	make install
+\end{lstlisting}
+
+This will build the Pangolin library for ARM64. INSTALL\_DIR should point to a directory which can be used as local ``root filesystem''. This root filesystem can later be copied via scp to the iMX8.
+
+\subsection{ORB SLAM2}
+We use the sources of ORB SLAM 2 \cite{orbslam2_impl}. Instead of using the sources from ORB SLAM directly the modified sources \cite{orbslam2_se} under branch iMX8 should be used. It contains some fixes for newer compiler versions as well as additional sources for the ECON Tara camera. After checking out the sources the following commands should build the binaries:\\
+\begin{lstlisting}
+	. /opt/fsl-imx-x11/4.9.51-mx8-beta/environment-setup-aarch64-poky-linux
+	mkdir build
+	cd build
+	cmake -DPangolin_DIR=<INSTALL_DIR/usr/lib/cmake/Pangolin> -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR> ..
+	make -j
+	make install
+\end{lstlisting}
+
+This will build ORB SLAM for ARM64. INSTALL\_DIR is the same directory as it was for Pangolin. After that we can copy the whole INSTALL\_DIR to the iMX8 root directory and start econ\_stereo for starting the SLAM system.
+
 \chapter{Densification}
+
+ORB SLAM only delivers a very sparse map. Therefore, it can't be used e.g. for creating a map or to reconstruct 3D objects. It's focus lays on delivering a stable pose of camera rather than on creating a useful map of it's environment. In this section we discuss how we can improve ORB SLAM by densifing the point cloud. We also show a ruff implementation which however isn't state of the art as we will see later.\\
+In the first section we will see how the stereo images can be used to create a depth map. The next section describes how to use the depth map to generate a point cloud. The two last sections discusses two possibilities how a depth map of several poses could be fused together. However, as we will see the current approach doesn't work as expected because the point cloud increases too fast and the algorithms slows down massively.
+
+\section{Depth Map}
+
+A depth map is an image that contains depth values instead of color intensities. They are normally generated from stereo cameras or from ToF cameras. We will only talk about how depth images are generated from stereo cameras. Image \ref{fig:depth} shows such an image that was generated from the images of a stereo camera.
+
+\begin{figure}[H]
+	\centering
+	\subfloat[left image]{\includegraphics[height=100px]{img/disparity_left.png}}
+	\subfloat[right image]{\includegraphics[height=100px]{img/disparity_right.png}}
+	\subfloat[depth image]{\includegraphics[height=100px]{img/disparity.png}}
+	\caption{Depth image from stereo}\label{fig:depth}
+\end{figure}
+
+As we can see in figure \ref{fig:depth} the depth image is noisy in areas where the we have low or no texture. This is due to how the algorithm works. The algorithm does an intensity block matching. Because the camera is aligned horizontally the algorithm begins matching at the pixel position of the left image and matches from there to the right as shown in figure \ref{fig:disparity}. The horizontal line is also called epipolar line. The distance of a point on the left image to the right image is called disparity. An object which is farer away will have less disparity than an object which is near. A point at infinity will have a disparity of zero.
+
+\begin{figure}[H]
+  \begin{center}
+		\includegraphics[width=0.9\textwidth]{img/disparity_concept.png}
+  \end{center}
+	\caption{Disparity with epipolar (horizontal) line, left: left image, right: right image with transparent left image}\label{fig:disparity}
+\end{figure}
+
+We use a Block Matching algorithm which matches for each pixel a template from the left image with the right image. The pixel with the lowest value is taken as best match and the offset is the disparity. However this algorithm is prone to noise therefore a modified version of this algorithm is used called Semi Global Block Matching (SGBM) \cite{sgbm}. In comparison to normal Block Matching this algorithm penalties if neighbour pixels have a big disparity difference. We additionally calculate the disparity for the left and right image so that we also get values for pixels that are only visible in one image. Further we can generate a confidence map if pixels have different disparities when we do left and right matching.
+
+\section{Point Cloud from Depth}
+
+From the Depth map generated by the previous section we can then calculate a dense point cloud based on the current pose. We transform the depth information into the three dimensional space. An example of such a point cloud can be seen in figure \ref{fig:pointcloud}. The point cloud is generated from the depth image by transforming each pixel with the current camera pose.
+
+\begin{equation}\label{eq:point_cloud_depth}
+	\begin{pmatrix}
+			X \\
+			Y \\
+			Z
+	\end{pmatrix}=
+	\begin{pmatrix}
+		r_{00} & r_{01} & r_{02} & t_x \\
+		r_{10} & r_{11} & r_{12} & t_y \\
+		r_{20} & r_{21} & r_{22} & t_z \\
+	\end{pmatrix}*
+	\begin{pmatrix}
+		x,
+		y,
+		d,
+		1
+	\end{pmatrix}
+\end{equation}
+\begin{align*}
+	X,Y,Z &:			\text{World position of the pixel}\\
+	r_{ij} &:			\text{Rotation elements of pose}\\
+	t_{x,y,z} &:	\text{Translation elements of pose}\\
+	x,y:					\text{u,v translated to world, see \ref{eq:orb_pos}}\\
+	d &:					\text{depth}
+\end{align*}
+
+\begin{figure}[H]
+  \begin{center}
+		\includegraphics[width=0.9\textwidth]{img/pointcloud.png}
+  \end{center}
+	\caption{Dense point cloud generated different key frames}\label{fig:pointcloud}
+\end{figure}
+
+To reduce the CPU load we only add new dense points to the cloud for keyframes. What we can see in figure \ref{fig:pointcloud} is that because of the uncertainty of the depth map we have tons of outliers. Further we don't fuse points at the same location therefore we generate a lot of points that have the same position within a statistic probability.
+
+\section{Point Cloud fusion}
+
+There are different papers that describe the problem of point cloud fusion. If you have two views that partially show the same region you will always have to merge the overlapping part. Here I would like to shortly point out two possibilities for that. REMODE and Volumetric 3D Mapping.
+
+\subsection{REMODE}
+
+REMODE uses a probabilistic approach to fuse data from different views. Only points that have a high enough probability for being there are actually drawn on the 3D map. This generates a semi dens point cloud which has a high probability of being true. However it requires a lot of frames seeing the same scene for getting high accuracy, this is exactly what we try to avoid because we already have problems to perform well with our current approach. Therefore this algorithm can't be used in embedded systems for our dense cloud.
+
+\subsection{Volumetric 3D Mapping}
+
+The approach of using a volumetric 3D mapping is quite interesting. The algorithm is designed to run on a CPU only. It assigns a box to each 3D pixel and grids this boxes in an octree. If a new pixel should entered the algorithm check whether it would fix in an existing box. Unfortunately, a short test implementation showed that also this approach would use too much CPU power. Therefore, we have to think about a different approach.
 
 \chapter{Reflection}
 
+In this chapter we reflect over the current status of this work. We analyse the achievements and see if we can improve the approach to achieve realtime location and mapping.
+
+\section{Results}
+
+\section{Optimizations}
+
+\section{Problems}
+
 \chapter{Direct Approach}
 
+\section{SVO}
+
+\section{Outlook}
+
 \chapter{Conclusion}
+
+\section{Fail}
+
+\section{Outlook}
 
 \listoffigures
  
@@ -349,17 +515,41 @@ Loop Closing:
   \textit{ORB-SLAM2: an Open-Source SLAM System for Monocular, Stereo and RGB-D Cameras}
 	arXiv:1610.06475v2 
 
+	\bibitem{yocto}
+	Yocto Project,
+	\textit{Yocto Project Mega Manual}
+	https://www.yoctoproject.org/docs/latest/mega-manual/mega-manual.html
+
+	\bibitem{toradex_bsp}
+	Toradex AG,
+	\textit{Build Apalis iMX8 OpenEmbedded Project Bring-up Image}
+	https://developer.toradex.com/software/linux/linux-software/build-apalis-imx8-yoctoopenembedded-bring-up-image
+
   \bibitem{orbslam2_impl}
   Raul Mur-Artal, J. M. M. Montiel, Juan D. Tardos
   \textit{ORB-SLAM2 Implemenation}
 	https://github.com/raulmur/ORB\_SLAM2
+
+  \bibitem{orbslam2_se}
+  Raul Mur-Artal, J. M. M. Montiel, Juan D. Tardos
+  \textit{ORB-SLAM2 Implemenation modified version}
+	https://github.com/eichenberger/ORB\_SLAM2.git
 
 	\bibitem{dbow}
 	D. Gálvez-López and J. D. Tardós,
 	\textit{Bags of binary words for fast place recognition in image sequences}
 	IEEE Trans. Robot., vol. 28, no. 5, pp. 1188–1197, 2012.
 
+	\bibitem{pangolin}
+	Steven Love Grove,
+	\textit{Pangolin Project}
+	https://github.com/stevenlovegrove/Pangolin.git
 
+	\bibitem{sgbm}
+	Heiko Hirschmüller,
+	\textit{ Stereo Processing by Semi-Global Matching and Mutual Information}
+	IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE
+	 
   \bibitem{selfcalib}
   Daniel Herrera et al.
   \textit{Forget the checkerboard: practical self-calibration using a planar scene}
