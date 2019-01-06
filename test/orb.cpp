@@ -23,7 +23,7 @@ int main(int argc, char **argv)
     cout << "Subminor version : " << CV_SUBMINOR_VERSION << endl;
     cout << "Use OCL: " << cv::ocl::useOpenCL() << endl;
     VideoCapture cap(argv[1]);
-    Ptr<ORB> orb = ORB::create(1200, 1.2, 8);
+    Ptr<ORB> orb = ORB::create(2000, 1.2, 8);
     while (key != 'q' && i < 500){
         Mat img;
         UMat uimg;

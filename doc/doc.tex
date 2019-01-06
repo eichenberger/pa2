@@ -11,6 +11,8 @@
 
 \input{layout}
 
+\setlength{\parindent}{0pt}
+
 \title{ORB Slam Point Cloud generation on Apalis iMX8}
 \author{Stefan Eichenberger}
 \date{December 2018}
@@ -346,7 +348,12 @@ Loop Closing:
 	f_u,f_v &:	\text{Focal length}
 \end{align*}
 
-\section{Port to iMX8}
+\section{Comparison Mono to Stereo}
+
+In this work we only talk about stereo SLAM. But what are the differences to a monocular SLAM system?\\
+A monocular camera can't see depth. This means that from one single image we can't estimate the keypoints in the 3D world. This means we need some kind of initialization process that will try to estimate the depth over several images. There are different strategies for solving the initialization problem. ORB SLAM calculates two models in parallel one if most points are laying on a plane and one model if most points are random distributed. In one model the Essential Matrix (Fundamental Matrix with only 5DoF) is searched while in the other model the homography matrix is searched. If the initialization succeeds one of this matrices will converge to a small reprojection error while the other wont. The new camera pose can be estimated by decomposing the converged matrix. Other approaches use a EKF and try to optimize the camera pose over the first n frames. The EKF starts with random depth values and converges after several frames to the ``real'' depth values.  For a monocular camera it is not possible to find all 6 DoF because the fundamental and homography matrix only have 5DoF. They therefore set the 6 parameter to 1 which means we don't get a real ``scale'' value. All measurements with only monocular cameras are therefore scales.
+
+\section{Port to iMX8}\label{sec:orbport}
 
 The iMX8 BSP is built with Yocto. NXP and Toradex provide a BSP layer which contains a kernel and all necessary proprietary libraries for OpenGL. OpenCV is already part of the image fsl-image-qt5. How we build the BSP and the SDK is out of scope of this project. Please check the following references:\\
 \begin{itemize}
@@ -376,26 +383,26 @@ index 32a2d78..683ef38 100644
 \end{lstlisting}
 
 After that the following commands should be done:
-\begin{lstlisting}
-	. /opt/fsl-imx-x11/4.9.51-mx8-beta/environment-setup-aarch64-poky-linux
-	mkdir build
-	cd build
-	cmake -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR> ..
-	make -j
-	make install
+\begin{lstlisting}[language=bash]
+. /opt/fsl-imx-x11/4.9.51-mx8-beta/environment-setup-aarch64-poky-linux
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR> ..
+make -j
+make install
 \end{lstlisting}
 
 This will build the Pangolin library for ARM64. INSTALL\_DIR should point to a directory which can be used as local ``root filesystem''. This root filesystem can later be copied via scp to the iMX8.
 
 \subsection{ORB SLAM2}
 We use the sources of ORB SLAM 2 \cite{orbslam2_impl}. Instead of using the sources from ORB SLAM directly the modified sources \cite{orbslam2_se} under branch iMX8 should be used. It contains some fixes for newer compiler versions as well as additional sources for the ECON Tara camera. After checking out the sources the following commands should build the binaries:\\
-\begin{lstlisting}
-	. /opt/fsl-imx-x11/4.9.51-mx8-beta/environment-setup-aarch64-poky-linux
-	mkdir build
-	cd build
-	cmake -DPangolin_DIR=<INSTALL_DIR/usr/lib/cmake/Pangolin> -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR> ..
-	make -j
-	make install
+\begin{lstlisting}[language=bash]
+. /opt/fsl-imx-x11/4.9.51-mx8-beta/environment-setup-aarch64-poky-linux
+mkdir build
+cd build
+cmake -DPangolin_DIR=<INSTALL_DIR/usr/lib/cmake/Pangolin> -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR> ..
+make -j
+make install
 \end{lstlisting}
 
 This will build ORB SLAM for ARM64. INSTALL\_DIR is the same directory as it was for Pangolin. After that we can copy the whole INSTALL\_DIR to the iMX8 root directory and start econ\_stereo for starting the SLAM system.
@@ -485,21 +492,103 @@ In this chapter we reflect over the current status of this work. We analyse the 
 
 \section{Results}
 
+The current implementation is heavily based on the original ORB SLAM2 implementation as described in section \ref{sec:orbport}. Because we used normal ORB SLAM the results from the original paper are still valid. However, what we are interested in is the realtime frame rate and the therefore the time used per frame. The original ORB SLAM2 implementation calculates exactly this time per frame and writes out the mean and median time after each run. For comparison we used the KITTI04 dataset with 271 images. The resolution of each image is 1226x370 where the ECON Tara has a resolution of 752x480. The KITTI dataset is a standard benchmark for SLAM therefore this one was taken. In comparison to Euroc another dataset it has smaller sequences and finishes therefore faster.\\\
+
+We compare the ORB SLAM ORB implementation with the ORB implementation from OpenCV. To be fair we reduce the feature count from 1000 to 800 because OpenCV ORB normally finds more features than the ORB SLAM implementation. The bigger the point cloud gets the slower the algorithm performs, therefore it wouldn't be a fair comparison.
+
+median tracking time: 0.358698
+mean tracking time: 0.362126
+
+
+\begin{table}
+	\begin{tabular}{  | l | l | l | l | l | l | }
+		\hline
+		\textbf{CPU} & \textbf{Impl.} & \textbf{feat.} & \textbf{feat. det.} & \textbf{median tt} & \textbf{mean tt} \\ \hline
+		iMX8 & ORB & 1000 &  548 & 0.18307 & 0.185202 \\ \hline
+		iMX8 & ORB, Linux scheduled & 1000 & 548 & 0.390867 & 0.387753 \\ \hline
+		iMX8 & OpenCV & 1000 & 757 & 0.190571 & 0.210072 \\ \hline
+		iMX8 & OpenCV & 800 & 610 & \textbf{0.155441} & \textbf{0.167176} \\ \hline
+		iMX8 & OpenCV, Linux scheduled & 800 & 610 & 0.358689 & 0.362126 \\ \hline
+		iMX8 & OpenCV OpenCL & 800 & 610 & 0.50622 & 0.771859 \\ \hline
+		i5-7Y54 & ORB & 1000 & 546 & 0.18884 & 0.184628 \\ \hline
+		i5-7Y54 & OpenCV & 1000 & 756 & 0.154901 & 0.152786 \\ \hline
+		i5-7Y54 & OpenCV & 800 & 610 & 0.135715 & 0.132304 \\ \hline
+	\end{tabular}
+	\caption{Comparison of ORB SLAM tracking time in KITTI04 using ORB or OpenCV implementation}
+  \label{tab:result}
+\end{table}
+
+As we can see from table \ref{tab:result} we can achieve the best timings on the iMX8 when using the OpenCV ORB SLAM implementation. We could extend this version so that it behaves the same as the ORB SLAM implementation and would still benefit from the improvement. However, we are still at a very low frame rate of around 6 frames per seconds. When we compare this result to a i5-7Y54 x86 processor we are not far away where we get around 7fps. Unfortunately none of this results is near to realtime it works well for slow movements but it can't handle fast movements because of the bad performance. The biggest disappointment is that the OpenCL implementation of ORB in OpenCV is worse than the CPU implementation. We can't therefore increase the performance by using the GPU instead of the CPU. Even if we would tweak the OpenCL implementation we probably wouldn't get close to the CPU version.
+
 \section{Optimizations}
+
+The current frame rate on the target as well as on a laptop with slow CPU is too low. This makes it difficult to get a robust mapping in realtime.
+
+\subsection{Other ORB implementation}
+By replacing the ORB algorithm from ORB SLAM with the one from OpenCV we can see that higher framerates are possible. However, this improves it only by around 20\% and we don't provide from the better distribution of ORB SLAM. This could of course be added to OpenCV ORB by modifying the sources.
+
+\subsection{Using OpenCL}
+OpenCV ORB also supports the finding of FAST corners and ORB descriptor calculation with OpenCL. However, a first test showed that using OpenCL is even slower than using the CPU. The reason for this is probably that the overhead is too high. It could be that an algorithm that is designed to run completely on GPU would benefit a lot more.
+
+\subsection{Reduce resolution}
+Using lower resolution images would improve the performance of the algorithm. However, this is not something we want to do because it also decreases the stability in the end. With a resolution of 752x480 we already limit the resolution to a realistic level for embedded devices.
 
 \section{Problems}
 
+\subsection{Big Algorithm}
+ORB SLAM is a powerful algorithm. It is also quite complicated in how it works. Bundle adjustment seems to be one of the most powerful optimization technics to improve the accuracy of SLAM. However, it is also not supper performance.
+
+\subsection{Descriptor Calculation}
+ORB descriptors are also very stable over different images and can even handle different illumination up to certain level. However, it seems that calculating the descriptors consumes quite some CPU power.
+
+\subsection{Lot of dependencies}
+It is clear how the algorithm works, however the implementation is quite complicated. It uses two additional libraries to OpenCV g2o and libeigen, g2o is even modified. This makes it hard to find a entry point for optimization.
+
+\subsection{Entrypoint}
+Even when only trying to optimize the tracking thread we are somehow dependent on local mapping because we need the point cloud. So it's also hard to find an entry point for optimization here.\\
+
+\subsection{Newer approaches}
+A lot of newer approaches for SLAM nowadays talk about direct approaches. It seems that the overhead of direct box matching can sometimes be less problematic than to calculate descriptors. If high frame rates can be achieved the search radius is very limited which reduces the CPU cost even more. By using IMU to track the movement we could probably limit the search radius even more which speeds up the direct approaches even more. This is unfortunately not true for ORB SLAM because we always have to do the heavy calculation of ORB descriptors. Therefore the next chapter should give a brief overview of what approach we should investigate in the future.
+
 \chapter{Direct Approach}
+
+Because a lot of newer papers describe sparse direct approaches as faster than indirect methods we will analyze one of them here. This could be the basis for future work specially when using it together with data from the IMU.
 
 \section{SVO}
 
+SVO stands for sparse visual odemetery. It is a sparse direct approach to the SLAM problem. The first monocular implementation was released as open source however the improved SVO2 source code is not publicly available. However, the paper describes the algorithm in good enough detail so that it should be possible to do a similar implementation. The algorithm is ruffly constructed as follows.
+
+Initialization (Stereo):
+\begin{enumerate}
+	\item Search corner points with FAST
+	\item Split the image into areas of fixed size (e.g. 32x32)
+	\item Take the FAST corner with maximum response in each area if there is any
+	\item (optional) If there is no FAST corner take the point with highest gradient on an edge
+	\item With a stereo camera we can do a template matching for each of this ~100 points to find the depth of each point
+	\item Add current frame as key frame
+\end{enumerate}
+
+Tracking:
+\begin{enumerate}
+	\item For each point we try to minimize the photometric error (intensity difference)
+		\subitem (optional) The motion model could be improved via IMU
+	\item By using Levenberg-Marquardt we find the best transformation matrix that describes our movement
+	\item (optional) For each point we calculate the backprojection and calculate packprojection into the image
+	\item (optional) From the backprojection we calculate the error between where we see the point and where it probably is
+	\item (optional) We adjust the 3D points with bundle adjustment to minimize the backprojection error of the key frame and the new image
+\end{enumerate}
+
+This algorithm can't do loop closing as ORB SLAM does. However, it would be possible to add such improvement if necessary (e.g. by using orb descriptors only on reference frames). Due to it's simplicity they report 13.27ms to process one 640x480 frame in EUROC Machine Hall 1 on an Nvidia Jetson TX1. The CPU of this processor is comparable to the one on the iMX8. This would end up in a frame rate of up to 75fps which is above 60fps what is the maximum of the Econ camera. They also split the algorithm into two threads, therefore even higher framerates could be achieved on a multiprocessor system.
+
+\section{Densification}
+
+In the SVO paper they describe the possibility to do densification based on the sparse points. The problem however is that dense clouds can consume a lot of graphics memory, which is not something you have granted on embedded systems. Because SVO is using corners as key points an approach could be that a mesh is created between all this points. To get a better feeling of the environment the keyframes can be used as textures so a dense mesh with a sparse point cloud can be created. To increase the resolution we simply need to get closer to the object, because in this case more corners are detected which means the map get denser. This would be computationally less expensive further the complicated fusion of point clouds is easier and could event be avoided by simply throwing away points with less resolution taken from a view farer away. We can argue that the same approach could be used for ORB SLAM however, the problem there is that we can't use any corner but only corners with good ORB responses. Therefore not all corners can be used which means the mesh will be less precise, maybe even hides important details.
+
 \section{Outlook}
+SVO SLAM is espacialy interesting because of it's simplicity and because it is possible to remove a lot of optional features. By removing this optional features the tracking results are getting worse but if we combine tracking with data from the IMU we can hopefully compensate the loss of precision. Together with a stereo camera we also don't need the complicated initialization process described in the SVO paper, because we can directly calculate the depth of each point with the first frame.
 
 \chapter{Conclusion}
-
-\section{Fail}
-
-\section{Outlook}
+Unfortunately the current results specially regarding realtime capabilities do not look promising for ORB SLAM. It is hard to optimize the algorithm because of its complexity. Event with multithreading and multiprocessing in place we still have dependencies between tracking and local mapping. Therefore we propose to use a direct sparse approach for doing SLAM instead of using an indirect sparse approach. The disadvantage of the computationally more expensive pose estimation has the advantage of not having the need of extracting expensive features. The whole algorithm also can be reduced to a simpler implementation when not using all optional features.
 
 \listoffigures
  
