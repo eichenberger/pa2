@@ -31,11 +31,14 @@ while key != ord('q'):
     M1l,M2l = cv2.initUndistortRectifyMap(K_l,D_l,R_l,P_l[0:3,0:3],(cols_l,rows_l),cv2.CV_32F)
     M1r,M2r = cv2.initUndistortRectifyMap(K_r,D_r,R_r,P_r[0:3,0:3],(cols_r,rows_r),cv2.CV_32F)
 
-    gray_l_rect = cv2.remap(gray_r,M1l,M2l,cv2.INTER_LINEAR)
-    gray_r_rect = cv2.remap(gray_l,M1r,M2r,cv2.INTER_LINEAR)
+    gray_r_rect = cv2.remap(gray_r,M1r,M2r,cv2.INTER_LINEAR)
+    gray_l_rect = cv2.remap(gray_l,M1l,M2l,cv2.INTER_LINEAR)
 
-    cv2.imshow("left", gray_l_rect)
-    cv2.imshow("right", gray_r_rect)
+    cv2.imshow("left", gray_l)
+    cv2.imshow("right", gray_r)
+
+    cv2.imshow("left rect", gray_l_rect)
+    cv2.imshow("right rect", gray_r_rect)
 
     key = cv2.waitKey(0)
 

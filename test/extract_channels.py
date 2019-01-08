@@ -29,10 +29,13 @@ def main():
     args = parser.parse_args()
 
     cap1 = cv2.VideoCapture(args.camera)
+    cap1.set(cv2.CAP_PROP_FRAME_WIDTH, 752)
+    cap1.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     set_manual_exposure(args.hidraw, 50000)
 
     key = 0
+    i = 0
 
     while key != ord('q'):
         ret, image1 = cap1.read()
@@ -43,11 +46,13 @@ def main():
         cv2.imshow("left", gray_l)
 
         key = cv2.waitKey(1)
+        if key == ord('w'):
+            print(f"Write image {i}")
+            cv2.imwrite(args.out + str(i) + "_left.jpg", gray_l)
+            cv2.imwrite(args.out + str(i) + "_right.jpg", gray_r)
+            i += 1
 
     cap1.release()
-
-    cv2.imwrite(args.out + "_left.jpg", gray_l)
-    cv2.imwrite(args.out + "_right.jpg", gray_r)
 
 if __name__ == "__main__":
     main()
