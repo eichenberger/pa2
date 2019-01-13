@@ -27,48 +27,47 @@
 \maketitle
 
 \begin{abstract}
-	For robotic navigation a map of the robots environment is often required. Because robots often are small in size and independent of power plugs, they have limited processing power. This work analyzes how well one specific SLAM system is suitable for an embedded processor and what kind of improvements would be possible.
+	For navigating a robot around obstacles it often requires a map of its environment. Because robots can be small and independent of power plugs, they have limited processing power. This work analyzes how suitable ORB SLAM is for an embedded processor and what kind of improvements would be possible.
 \end{abstract}
 
 \section*{Executive Summary}
-Simultaneous Location and Mapping (SLAM) is an important topic in computer vision today. The possibilities for this technology are infinite. SLAM can be used for navigation, object recognition and augmented reality. Often this algorithms need a high performance graphics card or a high performance processor. For industrial and robotics purposes we have constraints in space, thermal and power consumption. This doesn't allow the usage of a high performance CPUs. This work analyzes one specific SLAM algorithm on how it performs on a modern embedded ARM CPU. The long term goal is to have a system available that generates a map and to use this map for further navigation.
+Simultaneous Location and Mapping (SLAM) is an important topic in computer vision today. The possibilities for this technology are infinite. We can use SLAM for navigation, object recognition and augmented reality. Often this algorithms need a high performance graphics card or a high performance processor. For industrial and robotics purposes we have constraints in space, temperature and power consumption. This doesn’t allow the usage of a high performance CPUs. This work analyzes the ORB SLAM algorithm on how it performs on a modern embedded ARM CPU. The long-term goal is to have a system available that generates a map and to use this map for further navigation.
 
 \tableofcontents
 
 \chapter{Introduction}
-To find the position of a robot we can use different sensors. Navigation systems use IMUs, magneto meters, radio signals and for outdoor navigation GPS. Humans however, do a lot of navigation by eye. Embedded systems today have enough processing power to do complex calculations. Therefore a possibility to estimate the position of the robot can also be computer vision. One field in computer vision is SLAM where we try to create a map of the environment and estimate the pose of the camera based on camera images. In this project we analyze the performance of ORB SLAM \cite{orbslam} running on an iMX8QM as embedded system. We use a Stereo Camera to create a point cloud and use this point cloud to calculate the changes in pose and position. By using a Stereo Camera we are able to reconstruct a point cloud with a known scale. This allows us to create a 3D map with real world scale of the environment around the camera.
+To find the position of a robot we can use different sensors. Navigation systems use IMUs, magneto meters, radio signals and for outdoor navigation GPS. Humans however, do a lot of navigation by eye. Embedded systems today have enough processing power to make complex calculations. Therefore, a possibility to estimate the position of the robot can also be computer vision. One field in computer vision is SLAM where we try to create a map of the environment and to estimate the pose of the camera based on camera images. In this project, we analyze the performance of ORB SLAM \cite{orbslam} running on an iMX8QM as an embedded system. We use a stereo camera to create a point cloud and use this point cloud to calculate the changes in pose and position. As we will see, by using a stereo camera we can reconstruct a point cloud with a known scale. This allows us to create a 3D map with real world scale of the environment around the camera.
 
 \section{Apalis iMX8QM}
-
-This project is supported with embedded hardware by Toradex. Toradex is a system on module provider focusing on embedded ARM devices for industrial applications.  They are interested to see some new applications and demos running on the new Apalis iMX8QM. Therefore, we concluded to try to port a computer vision application like SLAM to this platform. One area where NXP, the manufacturer of the processor, tries to place the iMX8 is computer vision in industry and automation, that's why it should be a good fit for this type of application. NXP has launched different types of iMX8. Publicly available today is only the iMX8M which is performance wise placed between the iMX8 and the iMX8X. The Apalis iMX8 Quad Max used in this project is the processor with highest performance. It will be release in 2019. We were using an Alpha Silicon version of the processor that was provided by Toradex.
+Toradex supports this project with embedded hardware. Toradex is a system on module provider focusing on embedded ARM devices for industrial applications. They are interested to see some new applications and demos running on the new Apalis iMX8QM. Therefore, we try to port a SLAM application onto this platform. One area where NXP, the manufacturer of the processor, tries to place the iMX8 is computer vision in industry and automation. Therefore, this CPU should be a good fit for this kind of application. NXP launches different iMX8 variants. Publicly available today is only the iMX8M which is performance wise placed between the iMX8 and the iMX8X. The Apalis iMX8 Quad Max used in this project is the processor with highest performance. They will release it in 2019. This work uses an alpha silicon of the processor which is provided by Toradex.
 
 \subsection{Features}
 
-The iMX8QM has the following features:
+The iMX8 Quad Max has the following specification:
 \begin{itemize}
   \item Two Cortex A72 high performance processors
   \item Four Cortex A53 low power processors
-  \item Two Cotex M4 realtime processors 
+  \item Two Cotex M4 realtime MCUs
   \item Two Vivante GC7000 GPUs each with 8 cores that can calculated vec4 in float32
   \item Industrial temperature range from -40°C to 85°C
 \end{itemize}
 
-The iMX8 is focusing on industrial applications. Therefore it doesn't use state of the art production processes. The iMX8 is produced in 28nm structure while Smartphone processors already use 7nm technology. However, this make the processor less prone to high temperatures. The Cortex A72 also delivers good performance modern Smartphones today use Cortex A73 processors which are only one generation ahead. The Vivante GPU is a low end GPU that can be compared to middle class Smartphone GPUs. The two Cortex M4 processors could be used for Realtime processing. However, we don't use them in this work.
+The iMX8 is focusing on industrial applications. Therefore, it doesn’t use state-of-the-art production processes. They produce the iMX8 in 28nm structure while Smartphone processors today use 7nm technology. However, bigger structures make the processor less prone to high temperatures. The two Cortex A72, the four Cortex A53 and the Vivante GPU have the performance level of a today's mid-end Smartphone. The two Cortex M4 processors could be used to do Realtime processing. However, we don’t use them in this work.
 
 \section{Goals}
-The goals of this project can be described as:
+We can describe the goal of this project as follows:
 \begin{itemize}
 \item Porting ORB SLAM to the Apalis iMX8
-\item Analyzing different possibilities to speed up the algorithm
-\item Add an extension to create a denser cloud
-\item Evaluate the results and start discussion about further work.
+\item Analyzing different possibilities to speed up the ORB SLAM algorithm
+\item Add an addition to create a dense point clouds which could later be used to extract detailed maps
+\item Evaluate the results and start discussion about further work
 \end{itemize}
 
-The main focus of this work is to figure out how we can use or implement a SLAM algorithm that later could be used to reconstruct the world around the camera in 3D. This 3D world or 3D point cloud could in a later step, that is not part of this work, used to plan paths around obstacles and to estimate the position of a camera in a known environment.
+The focus of this work is to figure out how we can use or implement a SLAM algorithm that later could reconstruct the world around the camera in 3D. This 3D world or 3D point cloud could in a later step, that is not part of this work, used to plan paths around obstacles and to estimate the position of a camera in a known environment.
 
 \section{Time Plan}
 
-The project was planned to end on beginning of January. The concept phase started well. Unfortunately, standard ORB SLAM didn't perform very well for our purposes. First optimizations only improved the performance a little bit. However, we implemented a dense point cloud generator based on this implementation to figure out what challenges we have to fight there. The time plan of this project is shown in figure \ref{fig:timeplan}.
+The project was planned to end on beginning of January. The concept phase started well. Unfortunately, standard ORB SLAM didn’t perform well for our purposes. First optimizations only improved the performance a little. However, we implemented a dense point cloud generator based on this implementation to figure out what challenges we have to fight there. The time plan of this project is shown in figure \ref{fig:timeplan}.
 \begin{figure}[H]
 	\includegraphics[width=1.0\textwidth]{img/timeplan.png}
 	\caption{Time Plan}\label{fig:timeplan}
@@ -76,9 +75,7 @@ The project was planned to end on beginning of January. The concept phase starte
 
 \chapter{SLAM Evaluation}
 
-In this section we analyze what kind of SLAM systems are already documented today. We can ruffly split them into two groups indirect and direct SLAM see figure \ref{fig:slammodes}.\\\\
-Indirect methods analyze an image and try to extract features. This feature points are matched directly to further images. Based on this matches we can estimate the pose of the camera.
-Direct methods on the other hand operated directly on intensity variances. The goal is to find a pose that minimizes the intensity difference between two images. Because minimizing the intensity difference over the whole image is computational expensive most methods operated only on edges or corners of the image. Such methods are called direct semi dense or direct sparse methods. In the next sections we will a have discussion about these different approaches.
+In this section we analyze different documented SLAMs. We can split them into two groups indirect and direct SLAM see figure \ref{fig:slammodes}.Indirect methods analyze an image and try to extract features. This feature points are matched directly to further images. Based on these matches we can estimate the pose of the camera. Direct methods operate on intensity variances. The goal is to find a pose that minimizes the intensity difference between two images. Because minimizing the intensity difference over the whole image is computational expensive most methods operated only on edges or corners of the image. We call such methods direct semi dense or direct sparse. In the next sections we will have a discussion about these different approaches.
 
 \begin{figure}[H]
 	\includegraphics[width=1.0\textwidth]{img/slam_modes.png}
@@ -88,7 +85,7 @@ Direct methods on the other hand operated directly on intensity variances. The g
 
 \section{Indirect method}
 
-A well documented indirect method is ORB SLAM \cite{orbslam}. ORB SLAM extracts keypoints and calculates the ORB descriptors \cite{orb} around it. In further frames it again extracts ORB keypoints and matches them with the already known descriptors. Based on this matches it can do triangulation with RANSAC \cite{ransac} to estimate the current pose and position. Indirect methods have the advantage that the pose estimation can be done trough triangulation which isn't computational expensive. On the other side computing descriptors cost CPU time.
+A well documented indirect method is ORB SLAM \cite{orbslam}. ORB SLAM extracts keypoints and calculates the ORB descriptors \cite{orb} around it, in further frames it again extracts ORB keypoints and matches them with the already known descriptors. Based on these matches it can do triangulation with RANSAC \cite{ransac} to estimate the current pose and position. Indirect methods have the advantage we can estimate the pose trough triangulation which isn’t computationally expensive. On the other side computing descriptors cost CPU time.
 
 \section{Direct method}
 
@@ -103,7 +100,7 @@ In this section we will analyze two direct approaches a dense and a sparse appro
 
 \subsection{Dense}
 
-There are not that many dense SLAMs. One is DTAM \cite{dtam} which uses the intensity values of the whole image to do the pose estimation. The idea is to minimize the intensity difference (energy) between two images by optimizing the camera pose. The energy defined at one pixel position is defined as shown in \ref{eq:pixel_energy}. To estimate the Pose it tries to find a P that minimizes $E_{t}$ as shown in \ref{eq:total_energy}.
+There are not that many dense SLAMs. One is DTAM \cite{dtam} which uses the intensity values of the whole image to estimating the pose. The idea is to minimize the intensity difference (energy) between two images by optimizing the camera pose. The energy defined at one pixel position is defined as shown in \ref{eq:pixel_energy}. To estimate the Pose it tries to find a P that minimizes $E_{t}$ as shown in \ref{eq:total_energy}.
 \begin{equation}\label{eq:pixel_energy}
   E_{u}=I_1(u)-I_2(P*U)
 \end{equation}
@@ -126,22 +123,21 @@ Where:
 	Y				&: \text{Image rows}\\
 \end{align*}
 
-
-One of the biggest advantages of using a direct dense method is that we receive a dense point cloud which can be used directly to create maps and 3d objects. A big disadvantage is however that they are quite computational expensive. Therefore they are not appropriate for embedded devices.
+One of the biggest advantages of using a direct dense method is that we receive a dense point cloud which we can use to create maps and 3d objects. A big disadvantage is however that they are computational expensive. Therefore, they are not appropriate for embedded devices.
 
 \subsection{Sparse}
 
-Sparse direct SLAMs like SVO \cite{svo} don't optimize the Energy over the whole image but the energy at sparse points instead. One possibility of a sparse point is e.g. a corner point found by FAST \cite{fast}. Similar to sparse methods there are semi dense methods which try to minimize the energy with several points laying on edges. They can e.g. be found by Canny Edge detection or DoG. The advantage of sparse and semi dense are that such methods are less computational expensive than dense methods.\\\\
+Sparse direct SLAMs like SVO \cite{svo} don’t optimize the Energy over the whole image but the energy at sparse points instead. One possibility of a sparse point is e.g. a corner point found by FAST \cite{fast}. Similar to sparse methods there are semi dense methods which try to minimize the energy with several points laying on edges. Canny Edge detection or DoG can for example find such edges. The advantage of sparse and semi dense methods is that they are less computationally expensive than dense methods.\\\\
 
-Sparse direct methods don't create dense clouds immediately however they are able to work on weaker keypoints than indirect methods. Therefore they can create denser clouds than e.g. ORB SLAM. They can also be computational less expensive than indirect methods because they don't have to calculate expensive features.
+Sparse direct methods don’t create dense clouds immediately however they can work on weaker keypoints than indirect methods. Therefore, they can create denser clouds than e.g. ORB SLAM. They can also be computational less expensive than indirect methods because they don’t have to calculate expensive features \cite{svo}.
 
 \section{Stereo and Monocular SLAM}
 
-In this project the focus is on Stereo SLAM. A lot of todays paper focus on monocular SLAM. The reason that first Monocular cameras are cheaper and second Monocular cameras are available in Smartphones. Monocular SLAM has two main problems. First an initialization process needs to estimated the movement between two frames. A 3D point cloud can only be produced with two images with known position. In the monocular case the position of two images is random. Therefore the algorithm needs to guess the pose and transformation over a few images until it knows the pose. It does that by taking some assumption on the world or by trying to optimizing the point positions over several images. However, even when successfully initialize the second problem persists. In monocular SLAM we are not able to guess the scale of the point cloud. The intuition for this issue is that we can't distinguish between the movement of the camera on a small model close to the scene or the movement of the camera on the original model farer away from the scene. For stereo SLAM we don't have this issues. For each camera pose we get two images with known distance between the two camera sensors (baseline). Therefore, we can calculate the depth of each pixel in real world distance. From this we can generate a point cloud assuming that the initial camera pose starts at (0,0,0). We therefore have an instantaneous initialization and can calculate the real world position in a known unit e.g. meters. Tracking between two camera poses is however similar for monocular and stereo SLAM. For stereo SLAM tracking is often done only on one image. However keypoints can again be inserted immediately on stereo cameras without the need of using a second camera pose. This makes stereo SLAM more robust than monocular SLAM.
+In this project, the focus is on stereo SLAM. A lot of today's paper focus on monocular SLAM. The reasons are that first monocular cameras are cheaper and second monocular cameras are available in Smartphones. Monocular SLAM has two problems we don’t have with stereo SLAM. First an initialization process has to estimate the movement between two frames. We can only create a 3D point cloud based on two images with known position, in the monocular case the position of two images is random. Therefore, the algorithm needs to guess the pose and transformation over a few images until it knows the poses. It does that by making assumptions on the world or by trying to optimizing the point positions over several images. However, even when successfully initialized the second problem persists. Monocular SLAM is not able to guess the scale of the point cloud. The intuition for this issue is that we can’t distinguish between the movement of the camera on a small model close to the scene or the movement of the camera on the original model further away from the scene. With stereo SLAM we don’t have this issue. For each camera pose we get two images with a known distance between the two camera sensors (baseline). Therefore, we can calculate the depth of each pixel in real world distance. From this we can generate a point cloud assuming that the initial camera pose starts at (0,0,0). We therefore have an instantaneous initialization and can calculate the real world position in a known unit e.g. meters. Tracking between two camera poses is however the same on monocular and stereo SLAM. For stereo SLAM tracking mostly done only on one image. However we can again insert keypoints immediately on stereo cameras without the need of using a second camera pose. This makes stereo SLAM more robust than monocular SLAM.
 
 \section{Decision}
 
-In this project we will port ORB SLAM onto iMX8 and see how it performs. We decided to use ORB SLAM because of the following criteria:
+In this project, we port ORB SLAM onto iMX8 and see how it performs. We used ORB SLAM because of the following reasons:
 \begin{itemize}
 	\item Open Source implementation available
 	\item Powerful framework for displaying Point Cloud and images
@@ -150,14 +146,14 @@ In this project we will port ORB SLAM onto iMX8 and see how it performs. We deci
 	\item The CPVR lab already has experience with ORB on Smartphones
 \end{itemize}
 
-Based on ORB SLAM we try to analyze how we can use the iMX8 and whether ORB SLAM fits well for this target.
+Based on ORB SLAM we try to analyze how we can use the iMX8 and whether ORB SLAM fits well for this platform.
 
 \chapter{Camera Evaluation}
 
-To do stereo vision we need a stereo camera. There are a few stereo camera available on the market. It is also possible to build a stereo camera with two monocular cameras. However, we decided against that because it would require a mechanism to synchronize the images from both streams. We analyze three stereo cameras that are available on the market.
+To do stereo computer vision, we need a stereo camera. There are a few stereo cameras available on the market. It is also possible to build a stereo camera with two monocular cameras. However, we decided against that because it would require a mechanism to synchronize the images from both streams. We analyze three stereo cameras available on the market.
 
 \section{ZED}
-The ZED camera is a relatively new stereo camera from Stereo Labs. Here a feature list:
+The ZED camera is a new stereo camera from Stereo Labs. Here the specification of this camera:
 \begin{itemize}
 	\item Full HD color images with 30fps
 	\item USB3.0
@@ -201,7 +197,7 @@ The Intel SDK seems quite powerful and is open source as well. However the indep
 
 \section{Decision}
 
-Because the Econ Tara has an outstanding price ratio and because it is a conventional stereo camera we decide to use this camera. However, the Intel RealSense camera would be a great fit as well because it delivers a depth image directly. This would reduce the CPU load of the iMX8. If Full HD is required the ZED could also fit but keep in mind that for embedded systems Full HD processing may not be possible. We decided against this camera because of the high price and because of the closed source SDK.
+Because the Econ Tara has an outstanding price ratio and because it is a conventional stereo camera we use this camera. However, the Intel RealSense camera would be a great fit as well because it delivers a depth image directly. This would reduce the CPU load of the iMX8. If we require Full HD, the ZED could also fit but keep in mind that for embedded systems Full HD processing may not be possible. Another advantage is the bigger baseline of the ZED camera of 120mm. This would allow depth estimation with a higher range. We decided against this camera because of the high price and because of the closed source SDK.
 
 \chapter{Camera Calibration}
 
@@ -222,9 +218,7 @@ One example where we need to know the camera model is if we project virtual obje
 	\caption{Applied camera model with (red) and without(green) distortion}\label{fig:model}
 \end{figure}
 
-We also need to know the camera model when doing SLAM. With known camera model we can rectify (see \ref{fig:calibration_real}) the image so that we can assume the camera as a ``perfect'' pinhole camera with known image center and known focal width.
-
-Additional to the above parameters we need to align the images of the left and right camera in stereo vision. This process is called rectifying. The cameras aren't perfectly aligned in horizontal direction however we need to have them aligned because this makes it possible to search for correspondence only on the epipolar line. Further the cameras are slightly rotated which means we must inverse rotate the image to have a perfect alignment. So additional to the properties of the camera we need to know the following parameters:
+We also need to know the camera model when doing SLAM. With known camera model we can rectify (see \ref{fig:calibration_real}) the image so we can assume the camera as a ``perfect’’ pinhole camera model with known image center and known focal width. Additional to the above parameters we need to align the images of the left and right camera in stereo vision. The cameras aren’t perfectly aligned in the vertical direction however we need to have them aligned because this makes it possible to search for correspondence only on the epipolar line \cite{mvg}. Further the cameras are slightly rotated which means we must inverse rotate the image to have a perfect alignment. So additional to the properties of the camera we need to know the following parameters:
 \begin{itemize}
 	\item Rotation matrix of the right camera in regards to the left
 	\item Y offset of the right and left camera in pixels to align the images perfectly
@@ -287,11 +281,21 @@ We can describe the intuition as follows. A Point (X,Y,Z) is projected onto an i
 	\caption{Image projection}\label{fig:projection}
 \end{figure}
 
-In SLAM if we know the intrinsic camera matrix we can calculate the pose by multiplying the projection matrix with the inverse of the intrinsic matrix.
+The goal of camera calibration is to find the intrinsic camera matrix. With this camera matrix known we can calculate the position and pose of the camera by multiplying the projection matrix with the inverse of the intrinsic matrix as shown in \ref{eq:extrinsic}. A good reference for camera calibration is the OpenCV documentation \cite{opencv_calib}. We won't describe this process in more detail.
+
+\begin{equation}\label{eq:extrinsic}
+	E=I^{-1}*P
+\end{equation}
+
+\begin{align*}
+	E		&: \text{Extrinsic Matrix}\\
+	I		&: \text{Intrinsic Matrix}\\
+	P		&: \text{Projection Matrix}
+\end{align*}
 
 \section{Stereo Camera Model}
 
-Additional to the monocular parameters we need to find the parameters of the stereo camera. An image taken by a stereo camera normally is misaligned as shown in the top row of figure \ref{fig:stereo_calib}. The goal is to find the rotation matrix as well as the Y offset to get a perfectly aligned image pair as shown in the bottom row of figure \ref{fig:stereo_calib}.
+Additional to the monocular parameters we need to find the parameter of the stereo camera. An image taken by a stereo camera normally is misaligned as shown in the top row of figure \ref{fig:stereo_calib}. The goal is to find the rotation matrix as well as the Y offset to get a perfectly aligned image pair as shown in the bottom row of figure \ref{fig:stereo_calib}.
 
 \begin{figure}[H]
   \begin{center}
@@ -326,9 +330,10 @@ Another thing Stereo Calibration can calculate is the baseline of the two camera
 
 \section{Checkerboard Size}
 
-For camera calibration it is important to use a big checkerboard. The bigger the better the calibration results get. The reason is hidden in equation \ref{eq:cm}. When we try to find the projection matrix we will always have a small error. This error comes from restrictions regarding resolution and misplacement while detecting corners. However, if the checkerboard is far away the error will be divided trough the distance because we are not interested in scale while doing camera calibration. This means the farer away the checkerboard is the smaller will be the influence of our error.\\
-For calibrating the camera we can for example print a checkerboard on to an advertisement board as e.g. offered by \cite{mydisplay}.\\
-To see how well the calibration process performed we have to analyze the reprojection error that can be received by stereoCalibExtended of OpenCV. The error should be below 0.5 pixels, the smaller the better.
+For camera calibration it is important to use a big checkerboard. The bigger the board the better the calibration result get. The reason is hidden in equation \ref{eq:cm}. When we try to find the projection matrix we will always have a small error. This error comes from restrictions regarding resolution and misplacement while detecting corners. However, if the checkerboard is far away the error will be divided trough the distance because we are not interested in scale while doing camera calibration. This means the farer away the checkerboard is the smaller will be the influence of our error.\\
+For calibrating the camera we can for example print a checkerboard on an advertisement board as e.g. offered by \cite{mydisplay}.\\
+To see how well the calibration process performed we have to analyze the reprojection error that can be received by stereoCalibExtended of OpenCV. The error should be below 0.5 pixels, the smaller the better.\\
+For calibrating the Econ Tara, a checkerboard of size $1500x1000mm$ was used. The Checkerboard fields have a size of $166mmx166mm$ which leads to $8x6$ inner corners detected by the calibration script described in the next section.
 
 \section{Econ Tara calibration}
 For calibrating the Econ Tara camera we can use the econ\_calibration\_images.py scripts. It should be called as follows:
@@ -340,15 +345,14 @@ The images in the folder <calib folder> are gray scale and have the form <name><
 \begin{lstlisting}[language=bash]
 python3 extract_channels.py <camera> <hidraw> <calib folder>
 \end{lstlisting}
-This script expects the path to the Econ Tara camera, the path to the hidraw device (to set exposure) and the output folder.
+This script expects the path to the Econ Tara camera, the path to the hidraw device (to set auto-exposure) and the output folder.
 
 \chapter{ORB SLAM}\label{chap:implementation}
 
 In this chapter we discuss more deeply how ORB SLAM works and how we port it to the iMX8 processor.
 
 \section{How it works}
-ORB SLAM tries to find corners with the FAST corner detection. This gives us points which should lay on the intersection between two edges. We call this points keypoints. At the corners we later calculate the ORB descriptors which describes the keypoint.\\
-If we have a stereo image we can search for the keypoints on both images and from that calculate the depth of each point. For this we need to do the steps shown in figure \ref{fig:orb_slam2}.
+ORB SLAM tries to find corners with FAST corner detection \cite{fast}. This gives us points which should lay on the intersection between two edges. We call this points keypoints. At this points we calculate the ORB descriptors \cite{orb} which describe the keypoints in a unique way. Based on this keypoints it will estimate the pose and position of the camera in various steps shown in figure \ref{fig:orb_slam2}.
 
 \begin{figure}[H]
   \begin{center}
@@ -357,7 +361,9 @@ If we have a stereo image we can search for the keypoints on both images and fro
 	\caption{ORB SLAM2 \cite{orbslam2}}\label{fig:orb_slam2}
 \end{figure}
 
-ORB SLAM uses multiple threads to improve the performance of the algorithm, this threads are described in the following sections.
+ORB SLAM uses multiple threads to improve the performance of the algorithm, this threads and it's tasks are described in the following sections.
+
+\subsection{Initialization}
 
 \subsection{Tracking}
 
@@ -756,6 +762,15 @@ Unfortunately the current results specially regarding realtime capabilities do n
 	\textit{Faster and better: A machine learning approach to corner detection}
 	doi:10.1109/TPAMI.2008.275
 
+	\bibitem{mvg}
+	Richard Hartley
+	\textit{Multiple View Geometry in Computer Vision}
+	ISBN-10: 0-511-18618-5, p240-249
+
+	\bibitem{opencv_calib}
+	OpenCV,
+	\textit{Camera Calibration}
+	https://docs.opencv.org/3.4.3/dc/dbb/tutorial\_py\_calibration.html
 
 	\bibitem{mydisplay}
 	mydisplay.ch,
