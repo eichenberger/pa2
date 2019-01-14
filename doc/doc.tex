@@ -100,7 +100,7 @@ In this section we will analyze two direct approaches a dense and a sparse appro
 
 \subsection{Dense}
 
-There are not that many dense SLAMs. One is DTAM \cite{dtam} which uses the intensity values of the whole image to estimating the pose. The idea is to minimize the intensity difference (energy) between two images by optimizing the camera pose. The energy defined at one pixel position is defined as shown in \ref{eq:pixel_energy}. To estimate the Pose it tries to find a P that minimizes $E_{t}$ as shown in \ref{eq:total_energy}.
+There are not that many dense SLAMs. One is DTAM \cite{dtam} which uses the intensity values of the whole image to estimating the pose. The idea is to minimize the intensity difference (energy) between two images by optimizing the camera pose. The energy defined at one pixel position is defined as shown in equation \ref{eq:pixel_energy}. To estimate the Pose it tries to find a P that minimizes $E_{t}$ as shown in equation \ref{eq:total_energy}.
 \begin{equation}\label{eq:pixel_energy}
   E_{u}=I_1(u)-I_2(P*U)
 \end{equation}
@@ -197,7 +197,7 @@ The Intel SDK seems quite powerful and is open source as well. However the indep
 
 \section{Decision}
 
-Because the Econ Tara has an outstanding price ratio and because it is a conventional stereo camera we use this camera. However, the Intel RealSense camera would be a great fit as well because it delivers a depth image directly. This would reduce the CPU load of the iMX8. If we require Full HD, the ZED could also fit but keep in mind that for embedded systems Full HD processing may not be possible. Another advantage is the bigger baseline of the ZED camera of 120mm. This would allow depth estimation with a higher range. We decided against this camera because of the high price and because of the closed source SDK.
+We decided to use the Econ Tara because it has an outstanding price ratio and because it is a conventional stereo camera. However, the Intel RealSense camera is also great fit because it delivers depth images directly. This reduces the CPU load of the iMX8. If we require Full HD, we should use the ZED camera but keep in mind that for embedded systems Full HD processing may not be possible. Another advantage of the ZED camera is the bigger baseline of 120mm. This allows depth estimation with higher range. We decided against this camera because of the high price and because of the closed source SDK.
 
 \chapter{Camera Calibration}
 
@@ -281,7 +281,7 @@ We can describe the intuition as follows. A Point (X,Y,Z) is projected onto an i
 	\caption{Image projection}\label{fig:projection}
 \end{figure}
 
-The goal of camera calibration is to find the intrinsic camera matrix. With this camera matrix known we can calculate the position and pose of the camera by multiplying the projection matrix with the inverse of the intrinsic matrix as shown in \ref{eq:extrinsic}. A good reference for camera calibration is the OpenCV documentation \cite{opencv_calib}. We won't describe this process in more detail.
+The goal of camera calibration is to find the intrinsic camera matrix. With this camera matrix known we can calculate the position and pose of the camera by multiplying the projection matrix with the inverse of the intrinsic matrix as shown in equation \ref{eq:extrinsic}. A good reference for camera calibration is the OpenCV documentation \cite{opencv_calib}. We won't describe this process in more detail.
 
 \begin{equation}\label{eq:extrinsic}
 	E=I^{-1}*P
@@ -299,7 +299,7 @@ Additional to the monocular parameters we need to find the parameter of the ster
 
 \begin{figure}[H]
   \begin{center}
-		\includegraphics[width=0.9\textwidth]{img/stereo_calib.png}
+		\includegraphics[width=0.9\textwidth]{img/car_calib.jpg}
   \end{center}
 	\caption{Stereo Calibration, top row misaligned image, bottom row rectified images}\label{fig:stereo_calib}
 \end{figure}
@@ -315,7 +315,7 @@ Additional to the monocular parameters we need to find the parameter of the ster
 
 Figure \ref{fig:calibration_real} shows a ``real'' example of a calibrated stereo camera. In comparison to example \ref{fig:stereo_calib} this calibration also corrects distortion and equalizes fx and fy for both cameras.\\
 
-Another thing Stereo Calibration can calculate is the baseline of the two cameras. The baseline is the distance of the centers of the left and the right camera. For that we have to specify the length of one checkerboard field. With knowing that we can calculate the baseline. However, the calibration process will output focal length in pixels times baseline in meters as shown in equation \ref{eq:bf}. As we will see in equation \ref{eq:depth} this is the value needed for calculating the depth from disparity.
+Another parameter stereo calibration can calculate is the baseline between both cameras. The baseline is the distance of the centers of the left and the right camera. For that we have to specify the length of one checkerboard field. With known distance we can calculate the baseline. However, the calibration process will output focal length in pixels times baseline in meters as shown in equation \ref{eq:bf}. As we will see in equation \ref{eq:depth} this is the value needed for calculating the depth from disparity.
 
 \begin{equation}\label{eq:bf}
 	b_f=\frac{b*f}{p_s}
@@ -330,18 +330,18 @@ Another thing Stereo Calibration can calculate is the baseline of the two camera
 
 \section{Checkerboard Size}
 
-For camera calibration it is important to use a big checkerboard. The bigger the board the better the calibration result get. The reason is hidden in equation \ref{eq:cm}. When we try to find the projection matrix we will always have a small error. This error comes from restrictions regarding resolution and misplacement while detecting corners. However, if the checkerboard is far away the error will be divided trough the distance because we are not interested in scale while doing camera calibration. This means the farer away the checkerboard is the smaller will be the influence of our error.\\
+For camera calibration it is important to use a big checkerboard. The bigger the board the better the calibration result gets. The reason is hidden in equation \ref{eq:cm}. When we try to find the projection matrix we will always have a small error. This error comes from restrictions regarding resolution and misplacement while detecting corners. However, if the checkerboard is far away the error will be divided trough the distance because we are not interested in scale while doing camera calibration. This means the farer away the checkerboard is the smaller will be the influence of our error.\\
 For calibrating the camera we can for example print a checkerboard on an advertisement board as e.g. offered by \cite{mydisplay}.\\
 To see how well the calibration process performed we have to analyze the reprojection error that can be received by stereoCalibExtended of OpenCV. The error should be below 0.5 pixels, the smaller the better.\\
-For calibrating the Econ Tara, a checkerboard of size $1500x1000mm$ was used. The Checkerboard fields have a size of $166mmx166mm$ which leads to $8x6$ inner corners detected by the calibration script described in the next section.
+For calibrating the Econ Tara, a checkerboard of size $1500x1000mm$ was used. The Checkerboard fields have a size of $166x166mm$ which leads to $8x6$ inner corners detectable by the calibration script described in the next section.
 
 \section{Econ Tara calibration}
 For calibrating the Econ Tara camera we can use the econ\_calibration\_images.py scripts. It should be called as follows:
 \begin{lstlisting}[language=bash]
-python3 econ_calibration_images.py <calib folder> --size <checkerboard filed size>
+python3 econ_calibration_images.py <calib folder> --size <field size>
 \end{lstlisting}
 
-The images in the folder <calib folder> are gray scale and have the form <name><counter>\_left and <name><counter>\_right. We can use the script extract\_channels.py to create the images:
+<field size is the height and width of one checkerboard field. The images in the folder <calib folder> are gray scale and have the form <name><counter>\_left and <name><counter>\_right. We can use the script extract\_channels.py to create the images:
 \begin{lstlisting}[language=bash]
 python3 extract_channels.py <camera> <hidraw> <calib folder>
 \end{lstlisting}
@@ -352,7 +352,7 @@ This script expects the path to the Econ Tara camera, the path to the hidraw dev
 In this chapter we discuss more deeply how ORB SLAM works and how we port it to the iMX8 processor.
 
 \section{How it works}
-ORB SLAM tries to find corners with FAST corner detection \cite{fast}. This gives us points which should lay on the intersection between two edges. We call this points keypoints. At this points we calculate the ORB descriptors \cite{orb} which describe the keypoints in a unique way. Based on this keypoints it will estimate the pose and position of the camera in various steps shown in figure \ref{fig:orb_slam2}.
+ORB SLAM tries to find corners with FAST corner detection \cite{fast}. This gives us points which should lay on the intersection between two edges. We call this points keypoints. At this points we calculate the ORB descriptors \cite{orb} which describe the keypoints in a unique way. Based on this keypoints ORB SLAM will estimate the pose and position of the camera in various steps shown in figure \ref{fig:orb_slam2}.
 
 \begin{figure}[H]
   \begin{center}
@@ -374,7 +374,7 @@ In the following section we will use the terms keypoints, keyframes, pose and po
 
 \subsection{Initialization}
 
-Before starting Tracking the system needs an initialization step. In this step it generates the first Point Cloud at position $0,0,0$. For stereo SLAM this is quite simple:
+Before starting with tracking the system needs an initialization step. In this step it generates the first Point Cloud at position $0,0,0$. For stereo SLAM this is step is simple:
 \begin{enumerate}
 	\item Calculate ORB keypoints on the left and right image
 	\item Match the ORB descriptors of both images
@@ -384,8 +384,10 @@ Before starting Tracking the system needs an initialization step. In this step i
 \end{enumerate}	
 
 \begin{equation}\label{eq:depth}
-	d=\frac{f*b}{p_s*\Delta}\\
-	\Delta=u_{left}-u_{right}
+\begin{aligned}
+	d&=\frac{f*b}{p_s*\Delta}\\
+	\Delta&=x_{left}-x_{right}
+\end{aligned}
 \end{equation}
 \begin{align*}
 	d &:					\text{depth}\\
@@ -393,27 +395,29 @@ Before starting Tracking the system needs an initialization step. In this step i
 	f &:					\text{Focal length in m}\\
 	p_s	&:				\text{Pixel size in m}\\
 	\Delta &:			\text{Difference between x position on left and rigth image in pixels}\\
-	\u_{left} &:	\text{X Position of keypoint on left image}\\
-	\u_{right} &: \text{X Position of keypoint on right image}
+	x_{left} &:	\text{X Position of keypoint on left image}\\
+	x_{right} &: \text{X Position of keypoint on right image}
 \end{align*}
 
 \begin{equation}\label{eq:orb_pos}
-	y=\frac{d*u}{f_u}\\
-	x=\frac{d*v}{f_v}
+\begin{aligned}
+	X&=\frac{d*x}{f_x}\\
+	Y&=\frac{d*y}{f_y}
+\end{aligned}
 \end{equation}
 \begin{align*}
-	y &:				\text{Y position with camera 0}\\
-	x &: 				\text{X position with camera 0}\\
-	d &: 				\text{Depth=Z position with camera 0}\\
-	u,v &:			\text{X,Y position on image}\\
-	f_u,f_v &:	\text{Focal length}
+	X &:				\text{X position with camera as origin}\\
+	Y &: 				\text{Y position with camera as origin}\\
+	d &: 				\text{Depth=Z position with camera as origin}\\
+	x,y &:			\text{x,y position in pixels in the image}\\
+	f_x,f_y &:	\text{Focal length}
 \end{align*}
 
-This gives us an initial point cloud with camera as reference. We use this point cloud to estimate further poses as described in the following section. We will also have a look on the differences between stereo and monocular initialization in section \ref{sec:monster}.
+This gives us an initial point cloud with camera as origin. We use this point cloud to estimate further poses as described in the following section. We will also have a look on the differences between stereo and monocular initialization in section \ref{sec:monster}.
 
 \subsection{Tracking}
 
-Tracking is the most important task where the algorithm estimates the pose and position of the current camera view. 
+Tracking is the most important task where the algorithm estimates the pose and position of the current camera view. It performs the following steps:
 \begin{enumerate}
 	\item Find FAST corners
 	\item Calculate ORB descriptors at FAST corners
@@ -425,15 +429,15 @@ With known motion model from previous tracking:
 	\item If the movement goes to the right we take the left image for the search if the movement goes to the left we take the right image
 	\item Backproject points from 3D cloud with projection matrix found with motion model
 	\item Optimize pose and position with Levenberg Marquardt \cite{levenbergmarquardt} to minimize the backprojection error
-	\item Calculate the motion model by using the pose and position of the previous and new frame
+	\item Calculate the motion model by using the pose and position of the previous and current frame
 \end{enumerate}
 
 With unknown motion model:
 \begin{enumerate}
-	\item Search best matching KeyFrame with DBoW2 \cite{dbow}
-	\item Match ORB descriptors with best fitting KeyFrame
+	\item Search best matching keyframe with DBoW2 \cite{dbow}
+	\item Match ORB descriptors with best fitting keyframe
 	\item Triangulate the current pose as described in section \ref{sec:triangulation}
-	\item Calculate the motion model by using the pose and position of the previous and new frame
+	\item Calculate the motion model by using the pose and position of the previous and current frame
 \end{enumerate}
 
 At the end we check if the current frame is a potential keyframe. We do this by checking how many frames were captured since the last keyframe, if a lot of outliers were detected and if more than 35\% of points are new with regards to the reference keyframe. If it fulfills everything the new frame is a possible keyframe.\\
@@ -464,7 +468,7 @@ Loop Closing increases the precision of the point cloud because it can remove dr
 
 \subsection{Triangulation}\label{sec:triangulation}
 
-Triangulation is the task where we try to find a projection matrix based on a 3D/2D point mapping. We have to know at least 6 points for doing triangulation with the linear model. However, by using other models we could do triangulation with 3 points but we would have to use an non-linear model. By doing triangulation we want to find the projection matrix $p_{nn}$ in \ref{eq:projection}.
+Triangulation is the step where we find a projection matrix based on a 3D/2D point mapping. We have to know at least 6 points for doing triangulation with the linear model. However, by using other models we could do triangulation with 3 points but we would have to use an non-linear model. By doing triangulation we want to find the projection matrix $p_{nn}$ in \ref{eq:projection}.
 
 \begin{equation}\label{eq:projection}
 	\begin{pmatrix}p_{11} & p_{12} & p_{13} & p_{14}\\
@@ -534,8 +538,8 @@ We can rewrite equation \ref{eq:projection} as shown in equation \ref{eq:project
 
 \begin{equation}\label{eq:projection_flat_red}
 	\begin{pmatrix}
-		X & Y & Z & 1 & 0 & 0 & 0 & 0 & -uX & -uY & -uZ\\
-		0 & 0 & 0 & 0 & X & Y & Z & 1 & -vX & -vY & -vZ
+		X & Y & Z & 1 & 0 & 0 & 0 & 0 & -xX & -xY & -xZ\\
+		0 & 0 & 0 & 0 & X & Y & Z & 1 & -yX & -yY & -yZ
 	\end{pmatrix}
 	\begin{pmatrix}
 		p'_{00}\\
@@ -596,15 +600,44 @@ Where:
 \end{align*}
 
 
-Now that we know all unknowns we can easily calculate the Extrinsic matrix which describes the pose by multiplying the inverse intrinsic matrix times the projection matrix as shown in equation \ref{eq:extrinsic}.\\\\
+Now that we know all unknowns we can calculate the extrinsic matrix that describes the pose. We need to multiply the inverse intrinsic matrix times the projection matrix as shown in equation \ref{eq:extrinsic}. If we prefere angles instead of the rotation matrix we can extract them as shown in equation \ref{eq:angles}. Equation \ref{eq:angles_proof} shows the rotation matrix derived from angles. To get back angles we use the fact that $arctan(sin(x)/cos(x))=x$.
+\begin{equation}\label{eq:angles_proof}
+\begin{aligned}
+	&R=\begin{pmatrix}
+		&c(\theta_y)c(\theta_z) & -c(\theta_y)s(\theta_z) & s(\theta_y)\\
+		&c(\theta_x)s(\theta_z)s(\theta_y)c(\theta_z) & c(\theta_x)c(\theta_z)-s(\theta_x)s(\theta_y)s(\theta_z) & -s(\theta_x)c(\theta_y)\\
+		&s(\theta_x)s(\theta_z)-c(\theta_y)c(\theta_z) & c(\theta_x)s(\theta_y)s(\theta_z)+s(\theta_x)c(\theta_z) &	c(\theta_x)c(\theta_y)\\
+	\end{pmatrix}
+\end{aligned}
+\end{equation}
+Where:
+\begin{align*}
+	\theta_n	&: \text{Rotation in n direction}\\
+	s				  &: \text{sin}\\
+	c				  &: \text{cos}\\
+\end{align*}
+
+From that we get:
+\begin{equation}\label{eq:angles}
+\begin{aligned}
+	\theta_y &= arcsin(sin(\theta_y)) = arcsin(r_{02})\\
+	\theta_x &= arctan(\frac{-sin(\theta_x)cos(\theta_y)}{cos(\theta_x)cos(\theta_y)}) = arctan(\frac{r_{12}}{r_{22}})\\
+	\theta_z &= arctan(\frac{-cos(\theta_y)sin(\theta_z)}{cos(\theta_y)cos(\theta_z)}) = arctan(\frac{r_{01}}{r_{00}}) 
+\end{aligned}
+\end{equation}
+Where:
+\begin{align*}
+	\theta_n	&: \text{Rotation in n direction}\\
+	r_{nn}	  &: \text{Rotation matrix term see equation \ref{eq:cm}}\\
+\end{align*}
 
 Because we normally have more than 6 points available for triangulation we use RANSAC \cite{ransac} to find a good solution and to eliminate outliers.
 
 \section{Comparison Mono to Stereo}\label{sec:monster}
 
 In this work we only talk about stereo SLAM. But what are the differences to a monocular SLAM system?\\
-A monocular camera can't see depth. This means that from one single image we can't estimate the keypoints in the 3D world. Therefore, we need an initialization process that will try to estimate the depth over several images. There are different strategies for solving the initialization problem. ORB SLAM calculates two models in parallel one when most points are laying on a plane and one model when most points are randomly distributed. In one model we search the essential matrix (fundamental matrix with 5DoF) in the other we search the homography matrix \cite{orbslam}. If the initialization succeeds one of this matrices will converge to a small reprojection error while the other wont. The camera pose and position is calculated by decomposing the converged matrix.\\
-Other approaches use an extended Kalman filter (EKF) and try to optimize the camera pose over the first n frames \cite{svo}. The EKF starts with random depth values and converges after several frames to the ``real'' depth values. For a monocular camera it is not possible to find all 6 DoF because the fundamental and homography matrix only have 5DoF. They therefore set the 6 parameter to 1 which means we don't get a real ``scale'' value. All measurements with monocular cameras are therefore scales.
+A monocular camera can't see depth. This means that from one single image we can't estimate the keypoints in the 3D world. Therefore, we need an initialization process that will try to estimate the depth over several images. There are different strategies for solving the initialization problem. ORB SLAM calculates two models in parallel one when most points are laying on a plane and one model when most points are randomly distributed. In one model we search the essential matrix (fundamental matrix with 5 DoF) in the other we search the homography matrix \cite{orbslam}. If the initialization succeeds one of this matrices will converge to a small reprojection error while the other wont. The camera pose and position is calculated by decomposing the converged matrix.\\
+Other approaches use an extended Kalman filter (EKF) and try to optimize the camera pose over the first n frames \cite{svo}. The EKF starts with random depth values and converges after several frames to the ``real'' depth values. For a monocular camera it is not possible to find all 6 DoF because the fundamental and homography matrix only have 5 DoF. They therefore set the 6 parameter to 1 which means we don't get a real ``scale'' value. All measurements with monocular cameras are therefore scales.
 
 \section{Port to iMX8}\label{sec:orbport}
 
