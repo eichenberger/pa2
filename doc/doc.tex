@@ -363,36 +363,25 @@ ORB SLAM tries to find corners with FAST corner detection \cite{fast}. This give
 
 ORB SLAM uses multiple threads to improve the performance of the algorithm, this threads and it's tasks are described in the following sections.
 
+\begin{figure}[H]
+  \begin{center}
+		\includegraphics[width=0.9\textwidth]{img/pose_map.png}
+  \end{center}
+	\caption{ORB SLAM2 keyframes (blue), keypoints (red) current camera view (green)}\label{fig:pose_map}
+\end{figure}
+
+In the following section we will use the terms keypoints, keyframes, pose and position. In figure \ref{fig:pose_map} we see what this terms mean. The pose and position is where the image was taken and in which direction the camera was looking.
+
 \subsection{Initialization}
 
-\subsection{Tracking}
-
-Tracking is the most important task where the algorithm tries to estimated the pose of the current image.
+Before starting Tracking the system needs an initialization step. In this step it generates the first Point Cloud at position $0,0,0$. For stereo SLAM this is quite simple:
 \begin{enumerate}
-	\item Match descriptors from the left and the right image
-	\item Calculate the difference in pixels between the keypoint on the left and on the right image
-	\item Calculate the depth of the keypoint with formula shown in equation \ref{eq:depth}
-	\item With known depth calculate the point position with camera as reference
-	\item Match point descriptors with point descriptors from keyframe
-	\item Estimate new camera pose with triangulation and RANSAC
-	\item Check if this frame is a potential keyframe.
-\end{enumerate}
-The potential keyframe check is done by checking how many frames were captured since the last keyframe, if a lot of outliers were detected and if more than 35\% of points are new with regards to the reference keyframe.\\
-
-\subsection{Local Mapping}
-Local mapping tries to map the newly found keypoints into the world map.
-\begin{enumerate}
-	\item Transform the new keypoints to the global coordinate system based on the camera pose
-	\item Do a bundle adjustment. It is likely that points we already know do not 100\% match the position where we see the points. Bundle adjustment fuses the position of points seen more than once.
-	\item Check if more than 10\% of the points in the current frame compared to the points in all keyframes are new. If not we drop the keyframe for future use.
-\end{enumerate}
-
-\subsection{Loop Closing}
-Loop closing tries to detect loops and will then do a bundle adjustment to increase the precision of the point cloud.
-\begin{enumerate}
-	\item Match latest keyframe with all keyframes stored in the database with DBoW2 \cite{dbow}
-	\item Optimize correspondent point by doing bundle adjustment over key frame poses and point location
-\end{enumerate}
+	\item Calculate ORB keypoints on the left and right image
+	\item Match the ORB descriptors of both images
+	\item Calculate the disparity (difference) in pixel between the left and right image of each point
+	\item Calculate depth with equation \ref{eq:depth}
+	\item Calculate x and y position with equation \ref{eq:orb_pos}
+\end{enumerate}	
 
 \begin{equation}\label{eq:depth}
 	d=\frac{f*b}{p_s*\Delta}\\
@@ -420,10 +409,202 @@ Loop closing tries to detect loops and will then do a bundle adjustment to incre
 	f_u,f_v &:	\text{Focal length}
 \end{align*}
 
+This gives us an initial point cloud with camera as reference. We use this point cloud to estimate further poses as described in the following section. We will also have a look on the differences between stereo and monocular initialization in section \ref{sec:monster}.
+
+\subsection{Tracking}
+
+Tracking is the most important task where the algorithm estimates the pose and position of the current camera view. 
+\begin{enumerate}
+	\item Find FAST corners
+	\item Calculate ORB descriptors at FAST corners
+\end{enumerate}
+
+With known motion model from previous tracking:
+\begin{enumerate}
+	\item Search for matching ORB descriptors based on the motion model
+	\item If the movement goes to the right we take the left image for the search if the movement goes to the left we take the right image
+	\item Backproject points from 3D cloud with projection matrix found with motion model
+	\item Optimize pose and position with Levenberg Marquardt \cite{levenbergmarquardt} to minimize the backprojection error
+	\item Calculate the motion model by using the pose and position of the previous and new frame
+\end{enumerate}
+
+With unknown motion model:
+\begin{enumerate}
+	\item Search best matching KeyFrame with DBoW2 \cite{dbow}
+	\item Match ORB descriptors with best fitting KeyFrame
+	\item Triangulate the current pose as described in section \ref{sec:triangulation}
+	\item Calculate the motion model by using the pose and position of the previous and new frame
+\end{enumerate}
+
+At the end we check if the current frame is a potential keyframe. We do this by checking how many frames were captured since the last keyframe, if a lot of outliers were detected and if more than 35\% of points are new with regards to the reference keyframe. If it fulfills everything the new frame is a possible keyframe.\\
+
+\subsection{Local Mapping}
+Local mapping tries to map the newly found keypoints into the world map. It only does local mapping for possible keyframes found in the previous step.
+\begin{enumerate}
+	\item Transform new keypoints to the global coordinate system based on the camera pose
+	\item Do bundle adjustment \cite{bundleadjustment}. It is likely that points we already know do not 100\% match the position where we see the points. Bundle adjustment fuses the position of points found more than once.
+	\item Check if more than 10\% of the points in the current frame compared to the points in all keyframes are new. If not we drop the keyframe.
+\end{enumerate}
+
+\subsection{Loop Closing}
+Loop closing tries to detect loops and will then do a bundle adjustment to increase the precision of the point cloud.
+\begin{enumerate}
+	\item Match latest keyframe with all keyframes stored in the database with DBoW2 \cite{dbow}
+	\item Optimize corresponding points by doing bundle adjustment over all key frame poses and point positions
+\end{enumerate}
+
+Loop Closing increases the precision of the point cloud because it can remove drift. However, it only takes effect if a loop is detected as shown in figure \ref{fig:loop_closing}.
+
+\begin{figure}[H]
+  \begin{center}
+		\includegraphics[width=0.9\textwidth]{img/loop_closing.jpg}
+  \end{center}
+	\caption{A map before (top) and after (bottom) loop closing. The blue line shows the error before bundle adjustment.}\label{fig:loop_closing}
+\end{figure}
+
+\subsection{Triangulation}\label{sec:triangulation}
+
+Triangulation is the task where we try to find a projection matrix based on a 3D/2D point mapping. We have to know at least 6 points for doing triangulation with the linear model. However, by using other models we could do triangulation with 3 points but we would have to use an non-linear model. By doing triangulation we want to find the projection matrix $p_{nn}$ in \ref{eq:projection}.
+
+\begin{equation}\label{eq:projection}
+	\begin{pmatrix}p_{11} & p_{12} & p_{13} & p_{14}\\
+		p_{21} & p_{22} & p_{23} & p_{24}\\
+		p_{31} & p_{32} & p_{33} & p_{34}\\
+	\end{pmatrix}*
+	\begin{pmatrix}
+		X \\
+		Y \\
+		Z \\
+		1
+	\end{pmatrix}=
+	\begin{pmatrix}
+		u \\
+		v \\
+		s
+  \end{pmatrix}
+\end{equation}
+Where:
+\begin{align*}
+	p_{ij}		&: \text{Unknown camera projection values of projection matrix P}\\
+	X,Y,Z			&: \text{3D Point}\\
+	u,v,s			&: \text{2D Point}\\
+\end{align*}
+
+We can rewrite equation \ref{eq:projection} as shown in equation \ref{eq:projection_flat}. We don't know u and v directly. We only have the pixel position which is $x=u/s, y=v/s, 1$. There is no way to estimate s. We know that s equals to the third row of equation \ref{eq:projection_flat}. If we multiply x and y by the third row, the equation will still hold (equation \ref{eq:projection_flat_s}). As a side effect we can remove the third row because the left and right side are equal which always holds. We finally have two equation per image point. Another trick we use is to set $p_{34}$ to 1. This makes the Z position of the camera the norm for the other unknowns. Because of this change the trivial solution where every unknown is zero disappears. We can solve the final equation \ref{eq:projection_flat_red} for all unknowns $p_{ij}$ with linear least square.
+
+% Make sure we can have the whole column matrix (normally a line break will follow after 10 columns)
+\setcounter{MaxMatrixCols}{15}
+\begin{equation}\label{eq:projection_flat}
+	\begin{pmatrix}
+		X & Y & Z & 1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0\\
+		0 & 0 & 0 & 0 & X & Y & Z & 1 & 0 & 0 & 0 & 0\\
+		0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & X & Y & Z & 1\\
+	\end{pmatrix}
+	\begin{pmatrix}p_{00}\\
+		p_{11}\\
+		p_{12}\\
+		p_{13}\\
+		p_{14}\\
+		p_{21}\\
+		p_{22}\\
+		p_{22}\\
+		p_{23}\\
+		p_{31}\\
+		p_{32}\\
+		p_{33}\\
+		p_{34} \\
+	\end{pmatrix}=
+	\begin{pmatrix}u\\
+		v\\
+		s\\
+	\end{pmatrix}
+\end{equation}
+
+\begin{equation}\label{eq:projection_flat_s}
+	\begin{pmatrix}u\\
+		v\\
+		s\\
+	\end{pmatrix}=\begin{pmatrix}
+		x*(X*p_{31}+Y*p_{32}+Z*p_{33}+p_{34})\\
+		y*(X*p_{31}+Y*p_{32}+Z*p_{33}+p_{34})\\
+		1*(X*p_{31}+Y*p_{32}+Z*p_{33}+p_{34})
+	\end{pmatrix}
+\end{equation}
+
+
+\begin{equation}\label{eq:projection_flat_red}
+	\begin{pmatrix}
+		X & Y & Z & 1 & 0 & 0 & 0 & 0 & -uX & -uY & -uZ\\
+		0 & 0 & 0 & 0 & X & Y & Z & 1 & -vX & -vY & -vZ
+	\end{pmatrix}
+	\begin{pmatrix}
+		p'_{00}\\
+		p'_{11}\\
+		p'_{12}\\
+		p'_{13}\\
+		p'_{14}\\
+		p'_{21}\\
+		p'_{22}\\
+		p'_{23}\\
+		p'_{24}\\
+		p'_{31}\\
+		p'_{32}\\
+		p'_{33}
+	\end{pmatrix}=
+	\begin{pmatrix}x\\
+		y\\
+	\end{pmatrix}
+\end{equation}
+Where:
+\begin{align*}
+	p_{ij}		&: \text{unknown camera projection values}\\
+	p'_{ij}		&: \text{same as c but normalized to $p_{34}$}\\
+	X,Y,Z			&: \text{3D Point}\\
+	u,v,s			&: \text{2D Point with scale factor s}\\
+	x,y				&: \text{2D Point normalize to s=1}\\
+\end{align*}
+
+We miss one last step. We set $p_{34}$ to 1 to get rid of the trivial solution where all $p_{ij}$ are zero. We now have to find the right value for $p_{34}$. If we calculate the intrinsic times the extrinsic matrix we end up in equation \ref{eq:ext_int}. We focus on the third row. We know that the norm of a column of a rotation matrix must be one. The reason for this is that a rotation matrix will never change the length of a vector. Therefore, $h=\sqrt{r_{31}^2+r_{32}^2+r_{33}^2}$ must be one \cite{Wu}. Because we normalized tz to one, this assumption does not hold for our solution. The camera distance $t_z$ will therefore be $1*1/h$. To correct the projection matrix we can multiply the matrix with $1/h$ (equation \ref{eq:ext_int_scaled}).
+
+\begin{equation}\label{eq:ext_int}
+	P=
+	\begin{pmatrix}
+		f_xr_{11}+p_xr_{31} & f_xr_{12}+p_xr_{32} & f_xr_{13}+p_xr_{33} & f_xt_x+p_xt_z\\
+		f_yr_{21}+p_yr_{31} & f_yr_{22}+p_yr_{32} & f_yr_{23}+p_yr_{33} & f_yt_y+p_yt_z\\
+		r_{31} & r_{32} & r_{33} & t_z
+	\end{pmatrix}
+\end{equation}
+
+\begin{equation}\label{eq:ext_int_scaled}
+	P=1/h
+	\begin{pmatrix}
+		p'_{11} & p'_{12} & p'_{13} & p'_{14}\\
+		p'_{21} & p'_{22} & p'_{23} & p'_{24}\\
+		p'_{31} & p'_{32} & p'_{33} & 1\\
+	\end{pmatrix}
+\end{equation}
+
+Where:
+\begin{align*}
+	P					&: \text{projection matrix}\\
+	p_{ij}'		&: \text{projection matrix found with $t_z=1$}\\
+	f_x,f_y		&: \text{focal length}\\
+	c_x,c_y		&: \text{principal point}\\
+	r_{ij}		&: \text{Parameters of rotation matrix}\\
+	t_{x,y,z}	&: \text{location of the camera}\\
+	h					&: \text{scaling inverse $tz=1/\sqrt{r_{31}^{'2}+r_{32}^{'2}+r_{33}^{'2}}$}
+\end{align*}
+
+
+Now that we know all unknowns we can easily calculate the Extrinsic matrix which describes the pose by multiplying the inverse intrinsic matrix times the projection matrix as shown in equation \ref{eq:extrinsic}.\\\\
+
+Because we normally have more than 6 points available for triangulation we use RANSAC \cite{ransac} to find a good solution and to eliminate outliers.
+
 \section{Comparison Mono to Stereo}\label{sec:monster}
 
 In this work we only talk about stereo SLAM. But what are the differences to a monocular SLAM system?\\
-A monocular camera can't see depth. This means that from one single image we can't estimate the keypoints in the 3D world. This means we need some kind of initialization process that will try to estimate the depth over several images. There are different strategies for solving the initialization problem. ORB SLAM calculates two models in parallel one if most points are laying on a plane and one model if most points are random distributed. In one model the Essential Matrix (Fundamental Matrix with only 5DoF) is searched while in the other model the homography matrix is searched. If the initialization succeeds one of this matrices will converge to a small reprojection error while the other wont. The new camera pose can be estimated by decomposing the converged matrix. Other approaches use a EKF and try to optimize the camera pose over the first n frames. The EKF starts with random depth values and converges after several frames to the ``real'' depth values.  For a monocular camera it is not possible to find all 6 DoF because the fundamental and homography matrix only have 5DoF. They therefore set the 6 parameter to 1 which means we don't get a real ``scale'' value. All measurements with only monocular cameras are therefore scales.
+A monocular camera can't see depth. This means that from one single image we can't estimate the keypoints in the 3D world. Therefore, we need an initialization process that will try to estimate the depth over several images. There are different strategies for solving the initialization problem. ORB SLAM calculates two models in parallel one when most points are laying on a plane and one model when most points are randomly distributed. In one model we search the essential matrix (fundamental matrix with 5DoF) in the other we search the homography matrix \cite{orbslam}. If the initialization succeeds one of this matrices will converge to a small reprojection error while the other wont. The camera pose and position is calculated by decomposing the converged matrix.\\
+Other approaches use an extended Kalman filter (EKF) and try to optimize the camera pose over the first n frames \cite{svo}. The EKF starts with random depth values and converges after several frames to the ``real'' depth values. For a monocular camera it is not possible to find all 6 DoF because the fundamental and homography matrix only have 5DoF. They therefore set the 6 parameter to 1 which means we don't get a real ``scale'' value. All measurements with monocular cameras are therefore scales.
 
 \section{Port to iMX8}\label{sec:orbport}
 
@@ -433,7 +614,7 @@ The iMX8 BSP is built with Yocto. NXP and Toradex provide a BSP layer which cont
 	\item Toradex BSP \cite{toradex_bsp}
 \end{itemize}
 
-From the Yocto build we can also receive an SDK which contains a ARM64 toolchain that can be used to compile additional programs and libraries. This toolchain was used to build the ORB SLAM2 for the iMX8. For the following section we assume that the toolchain is installed under/opt/fsl-imx-x11/4.9.51-mx8-beta
+From the Yocto build we can also get an SDK which contains a ARM64 toolchain that can be used to compile additional programs and libraries. This toolchain was used to build ORB SLAM2 for iMX8. For the following section we assume that the toolchain is installed under /opt/fsl-imx-x11/4.9.51-mx8-beta.
 
 \subsection{Pangolin}
 Pangolin \cite{pangolin} is required by ORB SLAM for showing the sparse map and the camera pose. A simple git checkout of the pangolin sources is enough to receive the sources. Before building the project with CMake the following patch should be applied:
@@ -454,7 +635,7 @@ index 32a2d78..683ef38 100644
  option( BUILD_EXAMPLES "Build Examples" ON )
 \end{lstlisting}
 
-After that the following commands should be done:
+After that the following commands will compile and install Pangolin:
 \begin{lstlisting}[language=bash]
 . /opt/fsl-imx-x11/4.9.51-mx8-beta/environment-setup-aarch64-poky-linux
 mkdir build
@@ -464,10 +645,10 @@ make -j
 make install
 \end{lstlisting}
 
-This will build the Pangolin library for ARM64. INSTALL\_DIR should point to a directory which can be used as local ``root filesystem''. This root filesystem can later be copied via scp to the iMX8.
+This will build the Pangolin library for ARM64. INSTALL\_DIR should point to a directory which is used as local ``root filesystem''. This root filesystem should be copied via scp to the iMX8.
 
 \subsection{OpenCV}\label{sec:opencv}
-To get the modified ORB SLAM 2 working the OpenCV version from \cite{opencv_se} should be used. The branch se-3.4.3 contains some a modifications that allows us to reuse the image pyramid generated by ORB. Also the CMake flags are changed to allow compilation on iMX8. Additionally we need to compile OpenCV Contribute \cite{opencv_contrib} sources version tag 3.4.3. To build OpenCV the following commands are required:
+We modified ORB SLAM 2 for this project by adding different ORB implementations and by adding Densification. To make this version work we need the modified OpenCV version from \cite{opencv_se}. The branch se-3.4.3 contains some modification which allows to reuse the image pyramid generated by ORB. Also the CMake flags are changed to allow compilation on iMX8. Additionally we need to compile OpenCV Contribute \cite{opencv_contrib} version tag 3.4.3. To build OpenCV plus OpenCV Contribute the following commands are required:
 \begin{lstlisting}[language=bash]
 . /opt/fsl-imx-x11/4.9.51-mx8-beta/environment-setup-aarch64-poky-linux
 . /opt/fsl-imx-x11/4.9.51-mx8-beta/sysroots/x86_64-pokysdk-linux/environment-setup.d/cmake.sh
@@ -479,10 +660,10 @@ export PKG_CONFIG_LIBDIR=/opt/fsl-imx-x11/4.9.51-mx8-beta/sysroots/aarch64-poky-
 cmake -DWITH_ITT=NO -DWITH_LIBV4L=YES -DWITH_TBB=NO -DOPENCV_EXTRA_MODULES_PATH=<path to OpenCV contrib> -DCMAKE_BUILD_TYPE=Release ..
 \end{lstlisting}
 
-The libraries found in the lib directory can the be copied to /usr/lib on the iMX8.
+The libraries found in the lib directory we have to copy to /usr/lib on the iMX8.
 
 \subsection{ORB SLAM 2}
-We use the sources of ORB SLAM 2 \cite{orbslam2_impl}. Instead of using the sources from ORB SLAM directly the modified sources \cite{orbslam2_se} under branch iMX8 should be used. It contains some fixes for newer compiler versions as well as additional sources for the ECON Tara camera. After checking out the sources the following commands should build the binaries:\\
+The sources of this project are based on ORB SLAM 2 \cite{orbslam2_impl}. Instead of using the sources of the original the modified sources \cite{orbslam2_se} under branch work\_se should be used. It contains some fixes for newer compiler versions as well as additional sources for the Econ Tara camera. After fetching the sources with git the following commands will build the binary:\\
 \begin{lstlisting}[language=bash]
 . /opt/fsl-imx-x11/4.9.51-mx8-beta/environment-setup-aarch64-poky-linux
 mkdir build
@@ -492,16 +673,16 @@ make -j
 make install
 \end{lstlisting}
 
-This will build ORB SLAM for ARM64. INSTALL\_DIR is the same directory as it was for Pangolin. After that we can copy the whole INSTALL\_DIR to the iMX8 root directory and start econ\_stereo for starting the SLAM system. The OPENCV\_BUILD\_DIR should point to the build directory of OpenCV in section \ref{sec:opencv}.
+This will build ORB SLAM for ARM64. INSTALL\_DIR is the same directory as it was for Pangolin. After that we can copy the whole INSTALL\_DIR to the iMX8 root directory and start econ\_stereo to start the SLAM system. The OPENCV\_BUILD\_DIR should point to the build directory of OpenCV in section \ref{sec:opencv}.
 
 \subsection{ORB SLAM 2 usage}
 
-For the Econ Tara a special stere\_econ application is available. This application can be called as follows:
+For the Econ Tara a special stereo\_econ application is available. This application can be called as follows:
 \begin{lstlisting}[language=bash]
 ./stereo_econ path_to_vocabulary path_to_settings path_to_video
 \end{lstlisting}
 
-The first argument path\_to\_vocabulary is the ORB dictionary for DBoW2, path\_to\_settings should point to the Econ.yaml and path\_to\_video points to the Econ Stereo Camera device.\\
+The first argument path\_to\_vocabulary points to the ORB dictionary for DBoW2, path\_to\_settings should point to the Econ.yaml and path\_to\_video points to the Econ Stereo Camera device.\\
 In comparison to the orignal ORB SLAM 2 implementation some additional parameters are added:\\
 \begin{tabular}{l l}
 stereosgbm.cn & CN parameter fo sgbm \\
@@ -529,7 +710,7 @@ Densify.leftmargin & left margin for depth image \\
 Densify.rightmargin & right margin for depth image \\
 \end{tabular}\\
 
-The SGBM features are hard to tune the values in Econ.yaml were taken from the stereo\_match.cpp example of OpenCV \cite{opencv_se}. The ORBextractor.orbextractor can be used to switch between different ORB implementations in section \ref{sec:results}.
+The SGBM features are hard to tune the values in Econ.yaml were taken from the stereo\_match.cpp example of OpenCV \cite{opencv_se}. The ORBextractor.orbextractor can be used to switch between different ORB implementations in section \ref{sec:results}. Densify.*margin is used to remove some margin from depth images. This is necessary because points close to the boarders have high uncertainty.
 
 \chapter{Densification}
 
@@ -540,12 +721,12 @@ The SGBM features are hard to tune the values in Econ.yaml were taken from the s
 	\caption{A dense cloud generated with SGBM and ORB SLAM}\label{fig:dense_cloud}
 \end{figure}
 
-ORB SLAM only delivers a very sparse map. Therefore, it can't be used e.g. for creating a map or to reconstruct 3D objects. It's focus lays on delivering a stable pose of camera rather than on creating a useful map of it's environment. In this section we discuss how we can improve ORB SLAM by densifing the point cloud as shown in figure \ref{fig:dense_cloud}. We also show a ruff implementation which however isn't state of the art as we will see later.\\
-In the first section we will see how the stereo images can be used to create a depth map. The next section describes how to use the depth map to generate a point cloud. The two last sections discusses two possibilities how a depth map of several poses could be fused together. However, as we will see the current approach doesn't work as expected because the point cloud increases too fast and the algorithms slows down massively.
+ORB SLAM only delivers a very sparse map. Therefore, it can't be used e.g. for creating a map or to reconstruct 3D objects. It's focus lays on delivering a stable pose of the camera. In this section we discuss how we can improve ORB SLAM by densifing the point cloud as shown in figure \ref{fig:dense_cloud}. We also show a first implementation which however isn't state of the art as we will see later.\\
+In the first section we will see how the stereo images can be used to create a depth map. The next section describes how to use the depth map to generate a point cloud. The two last sections discuss two possibilities on how a depth map of several poses could be fused together. However, as we will see the current approach doesn't work as expected because the point cloud size increases too fast. Therefore, we don't have CPU time to fuse the point cloud effectively.
 
 \section{Depth Map}
 
-A depth map is an image that contains depth values instead of color intensities. They are normally generated from stereo cameras or from ToF cameras. We will only talk about how depth images are generated from stereo cameras. Image \ref{fig:depth} shows such an image that was generated from the images of a stereo camera.
+A depth map is an image that contains depth values instead of color intensities. They are generated from stereo cameras or from ToF cameras. We will only talk about how depth images are made from stereo cameras. Image \ref{fig:depth} shows a depth image made from two stereo images.
 
 \begin{figure}[H]
 	\centering
@@ -555,7 +736,7 @@ A depth map is an image that contains depth values instead of color intensities.
 	\caption{Depth image from stereo}\label{fig:depth}
 \end{figure}
 
-As we can see in figure \ref{fig:depth} the depth image is noisy in areas where the we have low or no texture. This is due to how the algorithm works. The algorithm does an intensity block matching. Because the camera is aligned horizontally the algorithm begins matching at the pixel position of the left image and matches from there to the right as shown in figure \ref{fig:disparity}. The horizontal line is also called epipolar line. The distance of a point on the left image to the right image is called disparity. An object which is farer away will have less disparity than an object which is near. A point at infinity will have a disparity of zero.
+As we see in figure \ref{fig:depth} the depth image is noisy in areas where we have low or no texture. The algorithm does an intensity block matching. Because we vertically aligned the camera, the algorithm starts matching at the pixel position of the left image and searches from there to the right as shown in figure \ref{fig:disparity}. The minimal intensity is the best match and therefore the postion we take. We call the distance between the left and right image disparity. An object far away has less disparity than a near object. A point at infinity will have a disparity of zero.
 
 \begin{figure}[H]
   \begin{center}
@@ -564,11 +745,11 @@ As we can see in figure \ref{fig:depth} the depth image is noisy in areas where 
 	\caption{Disparity with epipolar (horizontal) line, left: left image, right: right image with transparent left image}\label{fig:disparity}
 \end{figure}
 
-We use a Block Matching algorithm which matches for each pixel a template from the left image with the right image. The pixel with the lowest value is taken as best match and the offset is the disparity. However this algorithm is prone to noise therefore a modified version of this algorithm is used called Semi Global Block Matching (SGBM) \cite{sgbm}. In comparison to normal Block Matching this algorithm penalties if neighbour pixels have a big disparity difference. We additionally calculate the disparity for the left and right image so that we also get values for pixels that are only visible in one image. Further we can generate a confidence map if pixels have different disparities when we do left and right matching.
+As described we calculate the disparity by doing block matching. However, this algorithm is prone to noise therefore a we use a modified version of this algorithm called Semi Global Block Matching (SGBM) \cite{sgbm}. Compared to normal Block Matching this algorithm penalties big disparity differences between neighbouring pixels. We also calculate the disparity for the left and right image so we get values for pixels that are only visible in one image too. Further we can generate a confidence map if pixels have different disparities when we do left and right matching. We can use this confidence map to filter vague disparities and replace them with values of their neighbourhood.
 
 \section{Point Cloud from Depth}
 
-From the Depth map generated by the previous section we can then calculate a dense point cloud based on the current pose. We transform the depth information into the three dimensional space. An example of such a point cloud can be seen in figure \ref{fig:pointcloud}. The point cloud is generated from the depth image by transforming each pixel with the current camera pose.
+From the depth map generated by the previous section we calculate a dense point cloud based on the current pose. We transform the depth information into the three dimensional space. An example of such a point cloud is shown in figure \ref{fig:pointcloud}. The point cloud is generated from the depth image by transforming each pixel with the current camera pose.
 
 \begin{equation}\label{eq:point_cloud_depth}
 	\begin{pmatrix}
@@ -603,19 +784,19 @@ From the Depth map generated by the previous section we can then calculate a den
 	\caption{Dense point cloud generated from different key frames}\label{fig:pointcloud}
 \end{figure}
 
-To reduce the CPU load we only add new dense points to the cloud for keyframes. What we can see in figure \ref{fig:pointcloud} is that because of the uncertainty of the depth map we have tons of outliers. Further we don't fuse points at the same location therefore we generate a lot of points that have the same position within a statistic probability.
+To reduce the CPU load, we add new dense points to the cloud only for keyframes. What we see in figure \ref{fig:pointcloud} is that because of the uncertainty of the depth map we have tons of outliers. Further we don’t fuse points at the same location therefore we generate a lot of points that have the same position within a statistical uncertainty.
 
 \section{Point Cloud fusion}
 
-There are different papers that describe the problem of point cloud fusion. If you have two views that partially show the same region you will always have to merge the overlapping part. Here I would like to shortly point out two possibilities for that. REMODE and Volumetric 3D Mapping.
+There are different papers that describe the problem of point cloud fusion. If we have two views that partially show the same region we have to merge the overlapping part. Here we see two possibilities of how we could fuse two point cloud. REMODE is a probabilistic approach while volumetric 3D mapping is a more direct approach.
 
 \subsection{REMODE}
 
-REMODE uses a probabilistic approach to fuse data from different views. Only points that have a high enough probability for being there are actually drawn on the 3D map. This generates a semi dens point cloud which has a high probability of being true. However it requires a lot of frames seeing the same scene for getting high accuracy, this is exactly what we try to avoid because we already have problems to perform well with our current approach. Therefore this algorithm can't be used in embedded systems for our dense cloud.
+REMODE uses a probabilistic approach to fuse data from different views. Only points with high enough probability are drawn on the 3D map. This generates a semi-dense point cloud which has a high probability of being true. However, it requires a lot of frames seeing the same scene for getting high accuracy, this is exactly what we try to avoid because we already have problems to perform well with our current approach. Therefore, this algorithm isn’t suitable for us.
 
 \subsection{Volumetric 3D Mapping}
 
-The approach of using a volumetric 3D mapping is quite interesting. The algorithm is designed to run on a CPU only. It assigns a box to each 3D pixel and grids this boxes in an octree. If a new pixel should entered the algorithm check whether it would fix in an existing box. Unfortunately, a short test implementation showed that also this approach would use too much CPU power. Therefore, we have to think about a different approach.
+The approach of using a volumetric 3D mapping is interesting. The algorithm is designed to run on a CPU only. It assigns a box to each 3D pixel and puts this box into an octree. If we want to add a new pixel, the algorithm checks whether it fits in an existing box. Unfortunately, a short test implementation showed that even with this approach the CPU load explodes when using images at full resolution. Therefore, we would have to consider a different approach for a final solution which unfortunately didn’t fit into this time window.
 
 \chapter{Discussion}
 
@@ -767,6 +948,11 @@ Unfortunately the current results specially regarding realtime capabilities do n
 	\textit{Multiple View Geometry in Computer Vision}
 	ISBN-10: 0-511-18618-5, p240-249
 
+	\bibitem{levenbergmarquardt}
+	Wikipedia,
+	\textit{Levenberger-Marquardt algorithm}
+	https://en.wikipedia.org/wiki/Levenberg\%E2\%80\%93Marquardt\_algorithm
+
 	\bibitem{opencv_calib}
 	OpenCV,
 	\textit{Camera Calibration}
@@ -821,6 +1007,11 @@ Unfortunately the current results specially regarding realtime capabilities do n
 	wikipedia,
 	\textit{RANSAC}
 	https://de.wikipedia.org/wiki/RANSAC-Algorithmus
+
+	\bibitem{bundleadjustment}
+	B. Triggs, P. F. McLauchlan, R. I. Hartley, and A. W. Fitzgibbon,
+	\textit{Bundle adjustment a modern synthesis}
+ 	in Vision algorithms: theory and practice, 2000, pp. 298–372. 
 
 	\bibitem{opencv_se}
 	OpenCV,
