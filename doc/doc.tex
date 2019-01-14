@@ -153,7 +153,7 @@ Based on ORB SLAM we try to analyze how we can use the iMX8 and whether ORB SLAM
 To do stereo computer vision, we need a stereo camera. There are a few stereo cameras available on the market. It is also possible to build a stereo camera with two monocular cameras. However, we decided against that because it would require a mechanism to synchronize the images from both streams. We analyze three stereo cameras available on the market.
 
 \section{ZED}
-The ZED camera is a new stereo camera from Stereo Labs. Here the specification of this camera:
+The ZED camera \cite{zed} is a stereo camera from Stereo Labs. Here the specification of this camera:
 \begin{itemize}
 	\item Full HD color images with 30fps
 	\item USB3.0
@@ -167,7 +167,7 @@ The ZED camera is a new stereo camera from Stereo Labs. Here the specification o
 To run their SDK a Dual Core CPU with 2.3 GHz and CUDA > 3.0 is required. However, it's also possible to use the camera without their SDK.
 
 \section{ECON Tara}
-The Tara camera from Econ is another stereo camera. In comparison to the ZED camera it delivers a reduced resolution and only gray scale images.
+The Tara camera \cite{tara} from Econ is another stereo camera. In comparison to the ZED camera it delivers a reduced resolution and only gray scale images.
 \begin{itemize}
 	\item 752x480 gray scale images with 60fps
 	\item USB3.0
@@ -181,8 +181,8 @@ The Tara camera from Econ is another stereo camera. In comparison to the ZED cam
 
 It has a small OpenCV based SDK with open source software. In comparison to the ZED SDK it is less powerful.
 
-\section{Intel RealSense D430}
-The Intel RealSense camera is a infrared stereo camera. In comparison to RGB stereo camera it uses infrared images for stereo vision. It seems that this sensors are less prone for reflection. A third camera delivers RGB images in full HD.
+\section{Intel RealSense D435}
+The Intel RealSense camera \cite{realsense} is a infrared stereo camera. In comparison to RGB stereo camera it uses infrared images for stereo vision. It seems that this sensors are less prone for reflection. A third camera delivers RGB images in full HD.
 \begin{itemize}
 	\item 1280x720 with 90fps (IR), 1920x1080 with 30fps (RGB)
 	\item USB3.0
@@ -976,6 +976,22 @@ Unfortunately, the current result for ORB SLAM shows it is not convenient for e
 	\textit{Levenberger-Marquardt algorithm}\\
 	https://en.wikipedia.org/wiki/Levenberg\%E2\%80\%93Marquardt\_algorithm
 
+	\bibitem{zed}
+	Stereo Labs\\
+	\textit{ZED Stereo Camera}\\
+	https://www.stereolabs.com/zed/
+
+	\bibitem{tara}
+	Econ\\
+	\textit{Tara Stereo Camera}\\
+	https://www.e-consystems.com/3D-USB-Stereokamera-de.asp
+
+	\bibitem{realsense}
+	Intel\\
+	\textit{Intel RealSense}\\
+	https://realsense.intel.com/depth-camera/\#D415\_D435
+
+
 	\bibitem{opencv_calib}
 	OpenCV\\
 	\textit{Camera Calibration}\\
@@ -1020,6 +1036,11 @@ Unfortunately, the current result for ORB SLAM shows it is not convenient for e
 	B. Triggs, P. F. McLauchlan, R. I. Hartley, and A. W. Fitzgibbon\\
 	\textit{Bundle adjustment a modern synthesis}\\
  	in Vision algorithms: theory and practice, 2000, pp. 298–372. 
+
+	\bibitem{Wu}
+	Ying Wu,
+	\textit{Image Formation and Camera Calibration}
+	http://users.eecs.northwestern.edu/~yingwu/teaching/EECS432/Notes/camera.pdf (19.08.2018), Electrical Engineering \& Computer Science Northwestern University Evanston
 
 	\bibitem{pangolin}
 	Steven Love Grove\\
