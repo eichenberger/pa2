@@ -96,7 +96,7 @@ In this section we analyze different documented SLAMs. We can split them in two
 
 \section{Indirect method}
 
-A well documented indirect method is ORB SLAM \cite{orbslam}. ORB SLAM extracts ORB keypoints which are then matched with a known 3D point cloud. Based on these matches it can do triangulation with RANSAC \cite{ransac} to estimate the current pose and position. Indirect methods can estimate the pose through triangulation which isn’t computationally expensive. On the other side computing descriptors costs CPU time. We will describe ORB SLAM in more detail in chapter \ref{chap:implementation}.
+A well documented indirect method is ORB SLAM \cite{orbslam}. ORB SLAM extracts ORB keypoints which are then matched with a known 3D point cloud. Based on these matches it can do PnP with RANSAC \cite{ransac} to estimate the current pose and position. Indirect methods can estimate the pose through PnP which isn’t computationally expensive. On the other side computing descriptors costs CPU time. We will describe ORB SLAM in more detail in chapter \ref{chap:implementation}.
 
 \section{Direct method}
 
@@ -162,7 +162,7 @@ In this project, we port ORB SLAM onto iMX8 and see how it performs. We use ORB 
 	\item Open source implementation available
 	\item Powerful framework for displaying point cloud and images
 	\item Good documentation
-	\item Indirect methods seem promising because triangulation is fast
+	\item Indirect methods seem promising because PnP is fast
 	\item The CPVR lab already has experience with ORB on Smartphones
 \end{itemize}
 
@@ -255,9 +255,9 @@ The camera model expresses how any point in the three-dimensional space is proj
 		0 & 0 & 1 \\
 	\end{pmatrix}*
 	\begin{pmatrix}
-		r_{00} & r_{01} & r_{02} & t_x \\
-		r_{10} & r_{11} & r_{12} & t_y \\
-		r_{20} & r_{21} & r_{22} & t_z \\
+		r_{11} & r_{12} & r_{13} & t_x \\
+		r_{21} & r_{22} & r_{23} & t_y \\
+		r_{31} & r_{32} & r_{33} & t_z \\
 	\end{pmatrix}
 	\begin{pmatrix}
 		X \\
@@ -302,7 +302,7 @@ We can describe the intuition as follows. A Point (X,Y,Z) is projected onto an i
 	\caption{Image projection}\label{fig:projection}
 \end{figure}
 
-The goal of camera calibration is to find the intrinsic camera matrix. When doing SLAM we try to find the extrinsic matrix. When doing triangulation we normally get the projection matrix. With known intrinsic matrix we can calculate the position and pose (extrinsic matrix) of the camera by multiplying the projection matrix with the inverse of the intrinsic matrix as shown in equation \ref{eq:extrinsic}. 
+The goal of camera calibration is to find the intrinsic camera matrix. When doing SLAM we try to find the extrinsic matrix. When doing PnP \ref{sec:pnp} we normally get the projection matrix. With known intrinsic matrix we can calculate the position and pose (extrinsic matrix) of the camera by multiplying the projection matrix with the inverse of the intrinsic matrix as shown in equation \ref{eq:extrinsic}. 
 
 \begin{equation}\label{eq:extrinsic}
 	E=I^{-1}*P
@@ -460,7 +460,7 @@ With unknown motion model:
 	\setcounter{enumi}{1}
 	\item Search best matching keyframe with DBoW2 \cite{dbow}
 	\item Match ORB descriptors with best fitting keyframe
-	\item Triangulate the current pose as described in section \ref{sec:triangulation}
+	\item Find the current pose as described in section \ref{sec:pnp}
 	\item Calculate the motion model by using the pose and position of the previous and current frame
 \end{enumerate}
 
@@ -491,9 +491,9 @@ Loop Closing increases the precision of the point cloud because it can remove dr
 	\caption{A map before (top) and after (bottom) loop closing. The blue line shows the error before bundle adjustment.}\label{fig:loop_closing}
 \end{figure}
 
-\subsection{Triangulation}\label{sec:triangulation}
+\subsection{Linear Camera Pose Estimation}\label{sec:pnp}
 
-Triangulation is the step where we find a projection matrix based on a 3D/2D point mapping. We have to know at least 6 points for doing triangulation with the linear model. By doing triangulation we want to find the projection matrix $p_{ij}$ in \ref{eq:projection}.
+Linear Camera Pose Estimation (also Linear Perspective-n-Point) is the step where we find a projection matrix based on a 3D/2D point mapping. We have to know at least 6 points to do Perspective-n-Point (PnP) with the linear model. By doing PnP we want to find the projection matrix $p_{ij}$ in \ref{eq:projection}.
 
 \begin{equation}\label{eq:projection}
 	\begin{pmatrix}p_{11} & p_{12} & p_{13} & p_{14}\\
@@ -529,8 +529,7 @@ We can rewrite equation \ref{eq:projection} as shown in equation \ref{eq:project
 		0 & 0 & 0 & 0 & X & Y & Z & 1 & 0 & 0 & 0 & 0\\
 		0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & X & Y & Z & 1\\
 	\end{pmatrix}
-	\begin{pmatrix}p_{00}\\
-		p_{11}\\
+	\begin{pmatrix}p_{11}\\
 		p_{12}\\
 		p_{13}\\
 		p_{14}\\
@@ -554,8 +553,8 @@ We can rewrite equation \ref{eq:projection} as shown in equation \ref{eq:project
 		v\\
 		s\\
 	\end{pmatrix}=\begin{pmatrix}
-		x*(X*p_{31}+Y*p_{32}+Z*p_{33}+p_{34})\\
-		y*(X*p_{31}+Y*p_{32}+Z*p_{33}+p_{34})\\
+		x*(X*p_{11}+Y*p_{12}+Z*p_{13}+p_{14})\\
+		y*(X*p_{21}+Y*p_{22}+Z*p_{23}+p_{24})\\
 		1*(X*p_{31}+Y*p_{32}+Z*p_{33}+p_{34})
 	\end{pmatrix}
 \end{equation}
@@ -567,7 +566,6 @@ We can rewrite equation \ref{eq:projection} as shown in equation \ref{eq:project
 		0 & 0 & 0 & 0 & X & Y & Z & 1 & -yX & -yY & -yZ
 	\end{pmatrix}
 	\begin{pmatrix}
-		p'_{00}\\
 		p'_{11}\\
 		p'_{12}\\
 		p'_{13}\\
@@ -587,13 +585,13 @@ We can rewrite equation \ref{eq:projection} as shown in equation \ref{eq:project
 Where:
 \begin{align*}
 	p_{ij}		&: \text{unknown camera projection values}\\
-	p'_{ij}		&: \text{same as c but normalized to $p_{34}$}\\
+	p'_{ij}		&: \text{same as c but normalized with $p_{34}$}\\
 	X,Y,Z			&: \text{3D Point}\\
 	u,v,s			&: \text{2D Point with scale factor s}\\
 	x,y				&: \text{2D Point normalize to s=1}\\
 \end{align*}
 
-We miss one last step. We set $p_{34}$ to 1 to get rid of the trivial solution where all $p_{ij}$ are zero. We now have to find the right value for $p_{34}$. If we calculate the intrinsic times the extrinsic matrix we end up in equation \ref{eq:ext_int}. We focus on the third row. We know that the norm of a column of a rotation matrix must be one. The reason for this is that a rotation matrix will never change the length of a vector. Therefore, $h=\sqrt{r_{31}^2+r_{32}^2+r_{33}^2}$ must be one \cite{Wu}. Because we normalized tz to one, this assumption does not hold for our solution. The camera distance $t_z$ will therefore be $1*1/h$. To correct the projection matrix we can multiply the matrix with $1/h$ (equation \ref{eq:ext_int_scaled}).
+We miss one last step. In equation \ref{eq:projection_flat_s} u,v,s and $p_{ij}$ are unknown. Therefore, setting all unknowns to 0 would be a valid solution. If we set $p_{34}$ to 1 we can get rid of this trivial solution where all unknowns are zero. However, we now have to find the right value for $p_{34}$. If we calculate the intrinsic times the extrinsic matrix as shown in equation \ref{eq:cm} we end up in equation \ref{eq:ext_int}. We focus on the third row. We know that the norm of a column of a rotation matrix must be one. The reason for this is that a rotation matrix will never change the length of a vector. Therefore, $h=\sqrt{r_{31}^2+r_{32}^2+r_{33}^2}$ must be one \cite{Wu}. Because we normalized $t_z$ to one, this assumption does not hold for our solution. The camera distance $t_z$ will therefore be $1*1/h$. To correct the projection matrix we can multiply the matrix with $1/h$ (equation \ref{eq:ext_int_scaled}).
 
 \begin{equation}\label{eq:ext_int}
 	P=
@@ -645,9 +643,9 @@ Where:
 From that we get:
 \begin{equation}\label{eq:angles}
 \begin{aligned}
-	\theta_y &= arcsin(sin(\theta_y)) = arcsin(r_{02})\\
-	\theta_x &= arctan(\frac{-sin(\theta_x)cos(\theta_y)}{cos(\theta_x)cos(\theta_y)}) = arctan(\frac{r_{12}}{r_{22}})\\
-	\theta_z &= arctan(\frac{-cos(\theta_y)sin(\theta_z)}{cos(\theta_y)cos(\theta_z)}) = arctan(\frac{r_{01}}{r_{00}}) 
+	\theta_y &= arcsin(sin(\theta_y)) = arcsin(r_{13})\\
+	\theta_x &= arctan(\frac{-sin(\theta_x)cos(\theta_y)}{cos(\theta_x)cos(\theta_y)}) = arctan(\frac{r_{23}}{r_{33}})\\
+	\theta_z &= arctan(\frac{-cos(\theta_y)sin(\theta_z)}{cos(\theta_y)cos(\theta_z)}) = arctan(\frac{r_{12}}{r_{11}}) 
 \end{aligned}
 \end{equation}
 Where:
@@ -656,7 +654,7 @@ Where:
 	r_{nn}	  &: \text{Rotation matrix term see equation \ref{eq:cm}}\\
 \end{align*}
 
-Because we normally have more than 6 points available for triangulation we use RANSAC \cite{ransac} to find a good solution and to eliminate outliers.
+Because we normally have more than 6 points available for PnP we use RANSAC \cite{ransac} to find a good solution and to eliminate outliers.
 
 \section{Comparison Mono to Stereo}\label{sec:monster}
 
@@ -822,9 +820,9 @@ From the depth map generated by the previous section we calculate a dense point 
 			Z'
 	\end{pmatrix}=
 	\begin{pmatrix}
-		r_{00} & r_{01} & r_{02} & t_x \\
-		r_{10} & r_{11} & r_{12} & t_y \\
-		r_{20} & r_{21} & r_{22} & t_z \\
+		r_{11} & r_{12} & r_{13} & t_x \\
+		r_{21} & r_{22} & r_{23} & t_y \\
+		r_{31} & r_{32} & r_{33} & t_z \\
 	\end{pmatrix}*
 	\begin{pmatrix}
 		X\\
